@@ -1,12 +1,31 @@
 # cjktty-patches
 
+Maintained for `sys-kernel/gentoo-cjk-sources` and the live image built on it.
+
 Patches from [Gentoo-zh/linux-cjktty](https://github.com/Gentoo-zh/linux-cjktty) with minor changes.
 
 - Starting with linux 5.10, the kernel config option `CONFIG_FONT_16x16_CJK` has been renamed to `CONFIG_FONT_CJK_16x16`.
 - To have a larger font on high resolution screens, you probably want to apply 32x32 font data patch.
 - The patch built-in fonts expect to work with 8x16 or 16x32 fonts. When changing to other font sizes, characters may not display correctly.
 
+## History
+
+| Years | Where |
+|---|---|
+| 2011–2020 | [gentoo-zh/linux-cjktty](https://github.com/gentoo-zh/linux-cjktty), by microcai, one branch per kernel |
+| 2020–2024 | [zhmars/cjktty-patches](https://github.com/zhmars/cjktty-patches), extracted into a patch collection |
+| 2022– | [bigshans/cjktty-patches](https://github.com/bigshans/cjktty-patches), still maintained; this repository forked from it |
+
 ## Changes
+
+### 2026.8.8 / 6.12.102, 6.18, 7.1.7
+
+- Add patches for linux 6.12.102 and 6.18.
+- Update for linux 7.1.7.
+- Free the CJK font buffers with `kvfree`, and release `fontbuffer_utf`, which
+  was never freed.
+- Fix the builds of 6.12.63, 6.16 and 6.17.8.
+- Add `tools/`, a two-stage test harness.
 
 ### 2026.7.27 / 7.1.2
 
@@ -123,7 +142,7 @@ Patches from [Gentoo-zh/linux-cjktty](https://github.com/Gentoo-zh/linux-cjktty)
 ## Credits
 
 - [youbest](http://blog.chinaunix.net/uid/436750.html) for [original univt patches](https://github.com/zhmars/univt-patches/tree/master/v2.6)
-- [Gentoo-zh/linux-cjktty](https://github.com/Gentoo-zh/linux-cjktty) for original cjktty patches
+- [microcai](https://github.com/microcai) and [Gentoo-zh/linux-cjktty](https://github.com/Gentoo-zh/linux-cjktty) for original cjktty patches
 - [AOSC-Dev/aosc-os-abbs](https://github.com/AOSC-Dev/aosc-os-abbs) for some univt's modifications
 - [Unifont](https://savannah.gnu.org/projects/unifont) for font data
 - [Terminus Font](http://terminus-font.sourceforge.net) for font data
