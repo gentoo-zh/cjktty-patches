@@ -945,7 +945,7 @@ diff --git a/lib/fonts/font_sun8x16.c b/lib/fonts/font_sun8x16.c
 index 03d71e53954abd..70771ee84355ed 100644
 --- a/lib/fonts/font_sun8x16.c
 +++ b/lib/fonts/font_sun8x16.c
-@@ -273,4 +273,5 @@ const struct font_desc font_sun_8x16 = {
+@@ -273,5 +273,6 @@ const struct font_desc font_sun_8x16 = {
  #else
  	.pref	= -1,
  #endif
@@ -965,7 +965,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
 index 75aa9465307061..9cbb880b251aa9 100644
 --- a/drivers/tty/vt/vt.c
 +++ b/drivers/tty/vt/vt.c
-@@ -4596,6 +4596,11 @@ static int con_font_copy(struct vc_data *vc, struct console_font_op *op)
+@@ -4596,7 +4596,12 @@ static int con_font_copy(struct vc_data *vc, struct console_font_op *op)
  
  int con_font_op(struct vc_data *vc, struct console_font_op *op)
  {
@@ -140894,7 +140894,7 @@ diff --git a/lib/fonts/fonts.c b/lib/fonts/fonts.c
 index 9969358a7af5a8..7aa692577e41d4 100644
 --- a/lib/fonts/fonts.c
 +++ b/lib/fonts/fonts.c
-@@ -70,6 +70,10 @@ static const struct font_desc *fonts[] = {
+@@ -70,7 +70,11 @@ static const struct font_desc *fonts[] = {
  #ifdef CONFIG_FONT_TER16x32
  #undef NO_FONTS
      &font_ter_16x32,
