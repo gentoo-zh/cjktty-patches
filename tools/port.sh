@@ -29,9 +29,11 @@ target="$repo/v$series.x/cjktty-$version.patch"
 
 if [ "$finish" = 1 ]; then
 	[ -d "$work" ] || die "no port in progress for $version"
-	[ -z "$(find "$work" -name '*.rej' -print -quit)" ] ||
-		die "unresolved rejects remain: $(find "$work" -name '*.rej' | tr '\n' ' ')"
-	[ -n "$base" ] || base=$(cat "$work/.cjktty-base")
+	rejects=$(find "$work" -name '*.rej' | sort) || die "cannot scan $work for rejects"
+	[ -z "$rejects" ] || die "unresolved rejects remain: ${rejects//$'\n'/ }"
+	if [ -z "$base" ]; then
+		base=$(cat "$work/.cjktty-base") || die "cannot read the base patch path"
+	fi
 	find "$work" -name '*.orig' -delete
 	bash "$repo/tools/regen.sh" "$pristine" "$work" "$base" "$target" || die "regeneration failed"
 	echo "wrote $target"
@@ -43,20 +45,22 @@ fi
 base=$(cd "$(dirname "$base")" && pwd)/$(basename "$base")
 
 if [ ! -d "$pristine" ]; then
-	tarball="$lab/linux-$version.tar.xz"
-	[ -f "$tarball" ] ||
-		curl -fL# -o "$tarball" \
-			"https://cdn.kernel.org/pub/linux/kernel/v$series.x/linux-$version.tar.xz" ||
-		die "cannot download linux-$version"
+	tarball=$("$repo/tools/fetch-kernel.sh" "$version" "$lab") ||
+		die "cannot fetch linux-$version"
 	tar -xf "$tarball" -C "$lab" || die "cannot unpack $tarball"
 fi
 
-rm -rf "$work"
-cp -a "$pristine" "$work"
-echo "$base" > "$work/.cjktty-base"
+rm -rf "$work" || die "cannot clear port tree: $work"
+cp -a "$pristine" "$work" || die "cannot copy the pristine kernel tree"
+echo "$base" > "$work/.cjktty-base" || die "cannot record the base patch path"
 
-patch -d "$work" -p1 --forward < "$base" > "$lab/port-$version.log" 2>&1
-rejects=$(find "$work" -name '*.rej' | sort)
+patch_status=0
+patch -d "$work" -p1 --forward < "$base" > "$lab/port-$version.log" 2>&1 ||
+	patch_status=$?
+[ $patch_status -le 1 ] || die "patch failed with status $patch_status; see $lab/port-$version.log"
+rejects=$(find "$work" -name '*.rej' | sort) || die "cannot scan $work for rejects"
+[ $patch_status -eq 0 ] || [ -n "$rejects" ] ||
+	die "patch failed without producing rejects; see $lab/port-$version.log"
 
 grep -E 'FAILED|Hunk #' "$lab/port-$version.log" | tail -20
 echo

@@ -1,0 +1,82 @@
+diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
+--- a/drivers/tty/vt/vt.c
++++ b/drivers/tty/vt/vt.c
+@@ -4748,8 +4748,8 @@ static int con_font_get(struct vc_data *vc, struct console_font_op *op)
+ 
+ #define max_font_width	64
+ #define max_font_height	128
+-#define max_font_glyphs	512
+-#define max_font_size	(max_font_glyphs*max_font_width*max_font_height)
++#define max_font_glyphs	(65536 * 2)
++#define max_font_size	(512 * max_font_width * max_font_height)
+ 
+ static int con_font_get(struct vc_data *vc, struct console_font_op *op)
+ {
+@@ -4961,7 +4961,8 @@ static int con_font_set(struct vc_data *vc, const struct console_font_op *op)
+ 	if (size > max_font_size)
+ 		return -ENOSPC;
+ 
+-	void *font_data __free(kfree) = font.data = memdup_user(op->data, size);
++	void *font_data __free(kvfree) =
++		font.data = vmemdup_user(op->data, size);
+ 	if (IS_ERR(font.data))
+ 		return PTR_ERR(font.data);
+ 
+diff --git a/drivers/video/fbdev/core/fbcon.c b/drivers/video/fbdev/core/fbcon.c
+--- a/drivers/video/fbdev/core/fbcon.c
++++ b/drivers/video/fbdev/core/fbcon.c
+@@ -1166,7 +1166,7 @@ static void fbcon_init(struct vc_data *vc, bool init)
+ static void fbcon_free_font(struct fbcon_display *p)
+ {
+ 	if (p->userfont && p->fontdata && (--REFCOUNT(p->fontdata) == 0))
+-		kfree(p->fontdata - FONT_EXTRA_WORDS * sizeof(int));
++		kvfree(p->fontdata - FONT_EXTRA_WORDS * sizeof(int));
+ 	p->fontdata = NULL;
+ 	p->userfont = 0;
+ }
+@@ -2466,7 +2466,7 @@ static int fbcon_do_set_font(struct vc_data *vc, int w, int h, int charcount,
+ 	}
+ 
+ 	if (old_userfont && (--REFCOUNT(old_data) == 0))
+-		kfree(old_data - FONT_EXTRA_WORDS * sizeof(int));
++		kvfree(old_data - FONT_EXTRA_WORDS * sizeof(int));
+ 	return 0;
+ 
+ err_out:
+@@ -2476,7 +2476,7 @@ err_out:
+ 	if (userfont) {
+ 		p->userfont = old_userfont;
+ 		if (--REFCOUNT(data) == 0)
+-			kfree(data - FONT_EXTRA_WORDS * sizeof(int));
++			kvfree(data - FONT_EXTRA_WORDS * sizeof(int));
+ 	}
+ 
+ 	vc->vc_font.width = old_width;
+@@ -2511,7 +2511,8 @@ static int fbcon_set_font(struct vc_data *vc, const struct console_font *font,
+ 
+ 	/* Is there a reason why fbconsole couldn't handle any charcount >256?
+ 	 * If not this check should be changed to charcount < 256 */
+-	if (charcount != 256 && charcount != 512)
++	if (charcount != 256 && charcount != 512 &&
++	    charcount != 65536 * 2)
+ 		return -EINVAL;
+ 
+ 	/* font bigger than screen resolution ? */
+@@ -2540,7 +2541,7 @@ static int fbcon_set_font(struct vc_data *vc, const struct console_font *font,
+ 	if (check_add_overflow(FONT_EXTRA_WORDS * sizeof(int), size, &alloc_size))
+ 		return -EINVAL;
+ 
+-	new_data = kmalloc(alloc_size, GFP_USER);
++	new_data = kvmalloc(alloc_size, GFP_USER);
+ 
+ 	if (!new_data)
+ 		return -ENOMEM;
+@@ -2569,7 +2570,7 @@ static int fbcon_set_font(struct vc_data *vc, const struct console_font *font,
+ 		    FNTSIZE(fb_display[i].fontdata) == size &&
+ 		    tmp->vc_font.width == w &&
+ 		    !memcmp(fb_display[i].fontdata, new_data, size)) {
+-			kfree(new_data - FONT_EXTRA_WORDS * sizeof(int));
++			kvfree(new_data - FONT_EXTRA_WORDS * sizeof(int));
+ 			new_data = (u8 *)fb_display[i].fontdata;
+ 			break;
+ 		}
