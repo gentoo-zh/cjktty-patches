@@ -1,10 +1,11 @@
 #!/bin/bash
 # Apply a cjktty patch, build the kernel, boot it and check the console font.
 #
-# Usage: tools/test-patch.sh <kernel-version> [patch-file]
+# Usage: tools/test-patch.sh [--cjk32] <kernel-version> [patch-file ...]
 #
 #   tools/test-patch.sh 6.18.43
 #   tools/test-patch.sh 7.0 v7.x/cjktty-7.0.patch
+#   tools/test-patch.sh 6.18.44 cjktty-font-v2.patch cjktty-code-v2-6.18.patch
 #
 # A patch passes only when all three succeed: it applies with no fuzz, the
 # kernel builds, and the booted console reports the CJK font. Artifacts stay in
@@ -21,19 +22,27 @@ boot_timeout=${BOOT_TIMEOUT:-120}
 die() { echo "$*" >&2; exit 1; }
 step() { printf '\n== %s\n' "$*"; }
 
-[ $# -ge 1 ] || die "usage: $0 <kernel-version> [patch-file]"
+cjk32=0
+if [ "${1:-}" = "--cjk32" ]; then
+	cjk32=1
+	shift
+fi
+
+[ $# -ge 1 ] || die "usage: $0 [--cjk32] <kernel-version> [patch-file ...]"
 version=$1
 series=${version%%.*}
-minor=$(echo "$version" | cut -d. -f2)
+shift
 
-patch_file=${2:-}
-if [ -z "$patch_file" ]; then
-	for candidate in "$repo/v$series.x/cjktty-$version.patch" \
-			 "$repo/v$series.x/cjktty-$series.$minor.patch"; do
-		[ -f "$candidate" ] && { patch_file=$candidate; break; }
-	done
+patch_files=("$@")
+if [ ${#patch_files[@]} -eq 0 ]; then
+	command -v python3 >/dev/null || die "python3 is not installed"
+	selected_patch=$(python3 "$repo/tools/patch_selection.py" "$repo" "$version") ||
+		die "no patch for $version"
+	patch_files=("$selected_patch")
 fi
-[ -n "$patch_file" ] && [ -f "$patch_file" ] || die "no patch for $version"
+for patch_file in "${patch_files[@]}"; do
+	[ -f "$patch_file" ] || die "patch not found: $patch_file"
+done
 
 for tool in gcc cpio qemu-system-x86_64 patch; do
 	command -v "$tool" >/dev/null || die "$tool is not installed"
@@ -49,18 +58,26 @@ mkdir -p "$out"
 
 step "kernel source $version"
 if [ ! -d "$pristine" ]; then
-	[ -f "$tarball" ] ||
-		curl -fL# -o "$tarball" \
-			"https://cdn.kernel.org/pub/linux/kernel/v$series.x/linux-$version.tar.xz" ||
-		die "cannot download linux-$version"
+	tarball=$("$repo/tools/fetch-kernel.sh" "$version" "$lab") ||
+		die "cannot fetch linux-$version"
 	tar -xf "$tarball" -C "$lab" || die "cannot unpack $tarball"
 fi
 
-step "apply $(basename "$patch_file")"
+patch_names=()
+for patch_file in "${patch_files[@]}"; do
+	patch_names+=("$(basename "$patch_file")")
+done
+step "apply ${patch_names[*]}"
 rm -rf "$tree"
 cp -a "$pristine" "$tree"
-patch -d "$tree" -p1 --fuzz=0 --silent < "$patch_file" ||
-	die "$(basename "$patch_file") does not apply to $version with fuzz=0"
+for patch_file in "${patch_files[@]}"; do
+	patch -d "$tree" -p1 --fuzz=0 --silent < "$patch_file" ||
+		die "$(basename "$patch_file") does not apply to $version with fuzz=0"
+done
+if [ "$cjk32" = 1 ]; then
+	patch -d "$tree" -p1 --fuzz=0 --silent < "$repo/cjktty-add-cjk32x32-font-data.patch" ||
+		die "the 32x32 font data patch does not apply to $version"
+fi
 find "$tree" -name '*.orig' -delete
 
 step "configure"
@@ -73,12 +90,39 @@ make -C "$tree" -s x86_64_defconfig >/dev/null || die "defconfig failed"
 	-e CONFIG_FB -e CONFIG_FB_EFI -e CONFIG_FB_SIMPLE -e CONFIG_SYSFB_SIMPLEFB \
 	-e CONFIG_DRM_FBDEV_EMULATION -e CONFIG_FRAMEBUFFER_CONSOLE \
 	-e CONFIG_FRAMEBUFFER_CONSOLE_ROTATION -e CONFIG_CONSOLE_TRANSLATIONS \
-	-e CONFIG_FONTS -e CONFIG_FONT_CJK_16x16 -d CONFIG_FONT_CJK_32x32 \
+	-e CONFIG_FONTS \
 	-e CONFIG_BLK_DEV_INITRD -e CONFIG_DEVTMPFS -e CONFIG_DEVTMPFS_MOUNT \
 	-e CONFIG_SERIAL_8250 -e CONFIG_SERIAL_8250_CONSOLE || die "scripts/config failed"
+# scripts/config exits 0 without touching these symbols, so rewrite the line
+# outright; olddefconfig keeps what it finds here.
+set_option() {
+	# defconfig omits a symbol whose default is n, so absence is normal here;
+	# the assertion after olddefconfig is what proves the symbol exists.
+	local name=$1 value=$2 file=$tree/.config
+	sed -i "/^CONFIG_$name=/d; /^# CONFIG_$name is not set/d" "$file"
+	if [ "$value" = n ]; then
+		echo "# CONFIG_$name is not set" >> "$file"
+	else
+		echo "CONFIG_$name=$value" >> "$file"
+	fi
+}
+if [ "$cjk32" = 1 ]; then
+	# ter16x32 becomes the base font, so the console cell doubles in both axes
+	set_option FONT_CJK_16x16 n
+	set_option FONT_CJK_32x32 y
+	set_option FONT_TER16x32 y
+	# fbcon picks the first registered font, so 8x16 has to go or the console
+	# stays 8x16 and the 32x32 path is never reached
+	set_option FONT_8x16 n
+else
+	set_option FONT_CJK_16x16 y
+	set_option FONT_CJK_32x32 n
+fi
 make -C "$tree" -s olddefconfig >/dev/null || die "olddefconfig failed"
-grep -q '^CONFIG_FONT_CJK_16x16=y' "$tree/.config" ||
-	die "CONFIG_FONT_CJK_16x16 did not enable; the patch may not touch lib/fonts"
+want=CONFIG_FONT_CJK_16x16
+[ "$cjk32" = 1 ] && want=CONFIG_FONT_CJK_32x32
+grep -q "^$want=y" "$tree/.config" ||
+	die "$want did not enable; the patch may not touch lib/fonts"
 
 step "build"
 make -C "$tree" -j"$jobs" bzImage > "$out/build.log" 2>&1 || {
@@ -134,11 +178,20 @@ wait $qemu 2>/dev/null
 
 grep -q 'CJKTTY-BOOTED' "$out/serial.log" 2>/dev/null ||
 	die "the guest never reached the test; see $out/serial.log"
-grep -o 'vc-font: .*' "$out/serial.log" | head -1
+vcfont=$(grep -o 'vc-font: .*' "$out/serial.log" | head -1)
+echo "$vcfont"
+want_font=8x16
+[ "$cjk32" = 1 ] && want_font=16x32
+case "$vcfont" in
+*"vc-font: $want_font"*) ;;
+*) die "the console used ${vcfont:-no font}, not $want_font; the tested path is not the one intended" ;;
+esac
 
 step "console"
 [ -s "$out/console.ppm" ] || die "no screenshot was captured; see $out/serial.log"
-python3 "$repo/tools/check-console.py" "$out/console.ppm" ||
+cell=8x16
+[ "$cjk32" = 1 ] && cell=16x32
+python3 "$repo/tools/check-console.py" --cell "$cell" "$out/console.ppm" ||
 	die "$version: the console did not render CJK; see $out/console.ppm"
 
 echo

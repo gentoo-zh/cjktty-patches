@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <linux/vt.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
 #include <unistd.h>
@@ -84,6 +85,14 @@ int main(void)
 		snprintf(line, sizeof(line), "vc-font: unavailable (%s)\n", strerror(errno));
 	if (serial >= 0)
 		(void)!write(serial, line, strlen(line));
+
+	/* The serial port is an emulated UART and fbcon draws pixel by pixel, so
+	 * under TCG the marker outruns the glyphs the screenshot is taken for.
+	 * VT_WAITACTIVE returns once the console has finished switching, and the
+	 * sleep covers the drawing that follows it. */
+	if (tty >= 0)
+		(void)ioctl(tty, VT_WAITACTIVE, 1);
+	sleep(3);
 
 	if (serial >= 0)
 		(void)!write(serial, "CJKTTY-BOOTED\n", 14);
