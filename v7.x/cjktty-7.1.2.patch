@@ -558,7 +558,7 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
 index 6cdbc96ee..ef113685c 100644
 --- a/drivers/video/fbdev/core/fbcon_rotate.c
 +++ b/drivers/video/fbdev/core/fbcon_rotate.c
-@@ -11,10 +11,34 @@
+@@ -11,10 +11,56 @@
  #include <linux/errno.h>
  #include <linux/fb.h>
  #include <linux/font.h>
@@ -579,6 +579,28 @@ index 6cdbc96ee..ef113685c 100644
 +	if (!font_cjk || !font_cjk->data)
 +		return;
 +
++	unsigned int d_cellsize;
++	size_t size;
++	/* Preallocate because font_data_rotate() grows buffers with kmalloc. */
++	d_cellsize = font_glyph_size(font_cjk->width, font_cjk->height);
++	if (par->rotated.buf_rotate % 2)
++		d_cellsize = font_glyph_size(font_cjk->height, font_cjk->width);
++
++	if (check_mul_overflow(font_cjk->charcount, d_cellsize, &size))
++		return;
++
++	if (!par->rotated.buf_utf || size > par->rotated.bufsize_utf) {
++		kvfree(par->rotated.buf_utf);
++		par->rotated.buf_utf = NULL;
++		par->rotated.bufsize_utf = 0;
++
++		buf = kvmalloc_array(font_cjk->charcount, d_cellsize, GFP_KERNEL);
++		if (!buf)
++			return;
++
++		par->rotated.buf_utf = buf;
++		par->rotated.bufsize_utf = size;
++	}
 +	par->rotated.fontdata_utf = font_cjk->data;
 +	buf = font_data_rotate(font_cjk->data,
 +			       font_cjk->width, font_cjk->height,
@@ -593,7 +615,7 @@ index 6cdbc96ee..ef113685c 100644
  int fbcon_rotate_font(struct fb_info *info, struct vc_data *vc)
  {
  	struct fbcon_par *par = info->fbcon_par;
-@@ -40,6 +64,7 @@ int fbcon_rotate_font(struct fb_info *info, struct vc_data *vc)
+@@ -40,6 +86,7 @@
  	}
  
  	par->rotated.buf = buf;
