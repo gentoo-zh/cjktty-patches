@@ -1,8 +1,7 @@
 diff --git a/drivers/tty/vt/selection.c b/drivers/tty/vt/selection.c
-index 6ef22f0..b20e467 100644
 --- a/drivers/tty/vt/selection.c
 +++ b/drivers/tty/vt/selection.c
-@@ -221,6 +221,12 @@
+@@ -221,6 +221,12 @@ static int vc_selection_store_chars(stru
  			}
  			obp = bp;
  		}
@@ -18,7 +17,7 @@ index 6ef22f0..b20e467 100644
 diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
 --- a/drivers/tty/vt/vt.c
 +++ b/drivers/tty/vt/vt.c
-@@ -297,6 +297,13 @@
+@@ -297,6 +297,13 @@ static inline unsigned short *screenpos(
  	return p;
  }
  
@@ -32,7 +31,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  /* Called  from the keyboard irq path.. */
  static inline void scrolldelta(int lines)
  {
-@@ -375,6 +382,13 @@
+@@ -375,6 +382,13 @@ static void vc_uniscr_putc(struct vc_dat
  
  	if (uniscr)
  		uniscr->lines[vc->state.y][vc->state.x] = uc;
@@ -46,7 +45,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  }
  
  static void vc_uniscr_insert(struct vc_data *vc, unsigned int nr)
-@@ -388,6 +402,14 @@
+@@ -388,6 +402,14 @@ static void vc_uniscr_insert(struct vc_d
  		memmove(&ln[x + nr], &ln[x], (cols - x - nr) * sizeof(*ln));
  		memset32(&ln[x], ' ', nr);
  	}
@@ -61,7 +60,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  }
  
  static void vc_uniscr_delete(struct vc_data *vc, unsigned int nr)
-@@ -401,6 +423,14 @@
+@@ -401,6 +423,14 @@ static void vc_uniscr_delete(struct vc_d
  		memmove(&ln[x], &ln[x + nr], (cols - x - nr) * sizeof(*ln));
  		memset32(&ln[cols - nr], ' ', nr);
  	}
@@ -76,7 +75,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  }
  
  static void vc_uniscr_clear_line(struct vc_data *vc, unsigned int x,
-@@ -413,12 +443,16 @@
+@@ -413,12 +443,16 @@ static void vc_uniscr_clear_line(struct
  
  		memset32(&ln[x], ' ', nr);
  	}
@@ -93,7 +92,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  
  	if (uniscr) {
  		unsigned int cols = vc->vc_cols;
-@@ -426,12 +460,31 @@
+@@ -426,12 +460,31 @@ static void vc_uniscr_clear_lines(struct
  		while (nr--)
  			memset32(uniscr->lines[y++], ' ', cols);
  	}
@@ -125,7 +124,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  
  	if (uniscr) {
  		unsigned int i, j, k, sz, d, clear;
-@@ -806,6 +859,9 @@
+@@ -806,6 +859,9 @@ void complement_pos(struct vc_data *vc,
  {
  	static int old_offset = -1;
  	static unsigned short old;
@@ -135,7 +134,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	static unsigned short oldx, oldy;
  
  	WARN_CONSOLE_UNLOCKED();
-@@ -813,8 +869,15 @@
+@@ -813,8 +869,15 @@ void complement_pos(struct vc_data *vc,
  	if (old_offset != -1 && old_offset >= 0 &&
  	    old_offset < vc->vc_screenbuf_size) {
  		scr_writew(old, screenpos(vc, old_offset, true));
@@ -153,7 +152,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		notify_update(vc);
  	}
  
-@@ -826,12 +889,22 @@
+@@ -826,12 +889,22 @@ void complement_pos(struct vc_data *vc,
  		unsigned short *p;
  		p = screenpos(vc, offset, true);
  		old = scr_readw(p);
@@ -177,7 +176,53 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		}
  		notify_update(vc);
  	}
-@@ -1144,7 +1217,10 @@
+@@ -884,17 +957,40 @@ static void add_softcursor(struct vc_dat
+ 	if ((type & CUR_INVERT_FG_BG) && (i & CUR_FG) == ((i & CUR_BG) >> 4))
+ 		i ^= CUR_FG;
+ 	scr_writew(i, (u16 *)vc->vc_pos);
+-	if (con_should_update(vc))
+-		vc->vc_sw->con_putc(vc, i, vc->state.y, vc->state.x);
++	if (con_should_update(vc)) {
++#ifdef CONFIG_FONT_CJK
++		if (IS_ENABLED(CONFIG_FONT_CJK)) {
++			unsigned int offset = vc->vc_pos - vc->vc_origin;
++			u16 glyph[2] = {
++				i, scr_readw(screenpos_utf8(vc, offset))
++			};
++
++			vc->vc_sw->con_putcs(vc, glyph, 1, vc->state.y, vc->state.x);
++		} else
++#endif
++			vc->vc_sw->con_putc(vc, i, vc->state.y, vc->state.x);
++	}
+ }
+ 
+ static void hide_softcursor(struct vc_data *vc)
+ {
+ 	if (softcursor_original != -1) {
+ 		scr_writew(softcursor_original, (u16 *)vc->vc_pos);
+-		if (con_should_update(vc))
+-			vc->vc_sw->con_putc(vc, softcursor_original,
+-					vc->state.y, vc->state.x);
++		if (con_should_update(vc)) {
++#ifdef CONFIG_FONT_CJK
++			if (IS_ENABLED(CONFIG_FONT_CJK)) {
++				unsigned int offset = vc->vc_pos - vc->vc_origin;
++				u16 glyph[2] = {
++					softcursor_original,
++					scr_readw(screenpos_utf8(vc, offset))
++				};
++
++				vc->vc_sw->con_putcs(vc, glyph, 1, vc->state.y, vc->state.x);
++			} else
++#endif
++				vc->vc_sw->con_putc(vc, softcursor_original,
++							vc->state.y, vc->state.x);
++		}
+ 		softcursor_original = -1;
+ 	}
+ }
+@@ -1144,7 +1240,10 @@ int vc_allocate(unsigned int currcons)	/
  	    vc->vc_screenbuf_size > KMALLOC_MAX_SIZE || !vc->vc_screenbuf_size)
  		goto err_free;
  	err = -ENOMEM;
@@ -189,7 +234,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	if (!vc->vc_screenbuf)
  		goto err_free;
  
-@@ -1196,8 +1272,10 @@
+@@ -1196,8 +1295,10 @@ static int vc_do_resize(struct tty_struc
  				unsigned int cols, unsigned int lines)
  {
  	unsigned long old_origin, new_origin, new_scr_end, rlth, rrem, err = 0;
@@ -200,7 +245,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	unsigned int new_cols, new_rows, new_row_size, new_screen_size;
  	unsigned int user;
  	unsigned short *oldscreen, *newscreen;
-@@ -1241,7 +1319,10 @@
+@@ -1241,7 +1342,10 @@ static int vc_do_resize(struct tty_struc
  
  	if (new_screen_size > KMALLOC_MAX_SIZE || !new_screen_size)
  		return -EINVAL;
@@ -212,7 +257,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	if (!newscreen)
  		return -ENOMEM;
  
-@@ -1258,6 +1339,9 @@
+@@ -1258,6 +1362,9 @@ static int vc_do_resize(struct tty_struc
  
  	old_rows = vc->vc_rows;
  	old_row_size = vc->vc_size_row;
@@ -222,7 +267,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  
  	err = resize_screen(vc, new_cols, new_rows, user);
  	if (err) {
-@@ -1295,6 +1379,11 @@
+@@ -1295,6 +1402,11 @@ static int vc_do_resize(struct tty_struc
  	} else
  		first_copied_row = 0;
  	end = old_origin + old_row_size * min(old_rows, new_rows);
@@ -234,7 +279,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  
  	vc_uniscr_copy_area(new_uniscr, new_cols, new_rows,
  			    get_vc_uniscr(vc), rlth/2, first_copied_row,
-@@ -1306,6 +1395,12 @@
+@@ -1306,6 +1418,12 @@ static int vc_do_resize(struct tty_struc
  	while (old_origin < end) {
  		scr_memcpyw((unsigned short *) new_origin,
  			    (unsigned short *) old_origin, rlth);
@@ -247,7 +292,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		if (rrem)
  			scr_memsetw((void *)(new_origin + rlth),
  				    vc->vc_video_erase_char, rrem);
-@@ -1315,7 +1410,6 @@
+@@ -1315,7 +1433,6 @@ static int vc_do_resize(struct tty_struc
  	if (new_scr_end > new_origin)
  		scr_memsetw((void *)new_origin, vc->vc_video_erase_char,
  			    new_scr_end - new_origin);
@@ -255,7 +300,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	vc->vc_screenbuf = newscreen;
  	vc->vc_screenbuf_size = new_screen_size;
  	set_origin(vc);
-@@ -2591,10 +2685,437 @@
+@@ -2591,10 +2708,438 @@ static int ucs_cmp(const void *key, cons
  static int is_double_width(uint32_t ucs)
  {
  	static const struct interval double_width[] = {
@@ -450,7 +495,6 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
 +		{ 0x22FD, 0x22FD },
 +		{ 0x22FF, 0x2300 },
 +		{ 0x2316, 0x2316 },
-+		{ 0x231A, 0x231B },
 +		{ 0x2329, 0x232A },
 +		{ 0x232C, 0x2335 },
 +		{ 0x237B, 0x237E },
@@ -465,22 +509,23 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
 +		{ 0x2427, 0x243F },
 +		{ 0x244B, 0x24FF },
 +		{ 0x25EF, 0x25EF },
-+		{ 0x25FD, 0x25FE },
 +		{ 0x2603, 0x2603 },
++		{ 0x2605, 0x2606 },
 +		{ 0x2610, 0x2612 },
-+		{ 0x2614, 0x2619 },
++		{ 0x2615, 0x2619 },
 +		{ 0x2622, 0x2624 },
 +		{ 0x262B, 0x262C },
 +		{ 0x262F, 0x2637 },
-+		{ 0x2648, 0x2653 },
 +		{ 0x2672, 0x268F },
-+		{ 0x2692, 0x26A7 },
-+		{ 0x26A9, 0x26AB },
++		{ 0x2692, 0x26A0 },
++		{ 0x26A2, 0x26A7 },
++		{ 0x26A9, 0x26A9 },
 +		{ 0x26AD, 0x26B1 },
 +		{ 0x26B6, 0x26B6 },
 +		{ 0x26BD, 0x26E1 },
 +		{ 0x26E3, 0x2767 },
-+		{ 0x2776, 0x27BF },
++		{ 0x2776, 0x27AF },
++		{ 0x27B1, 0x27BF },
 +		{ 0x27C1, 0x27C1 },
 +		{ 0x27C3, 0x27C4 },
 +		{ 0x27C8, 0x27C9 },
@@ -622,6 +667,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
 +		{ 0xFFD0, 0xFFD1 },
 +		{ 0xFFD8, 0xFFD9 },
 +		{ 0xFFDD, 0xFFE7 },
++		{ 0xFFEF, 0xFFFC },
 +		{ 0x16FE0, 0x16FE4 },
 +		{ 0x16FF0, 0x16FF1 },
 +		{ 0x17000, 0x187F7 },
@@ -693,7 +739,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	};
  	if (ucs < double_width[0].first ||
  	    ucs > double_width[ARRAY_SIZE(double_width) - 1].last)
-@@ -2824,6 +3345,8 @@
+@@ -2824,6 +3369,8 @@ static int vc_con_write_normal(struct vc
  			 * end up with having question marks only.
  			 */
  			tc = c;
@@ -702,7 +748,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		} else {
  			/*
  			 * Display U+FFFD. If it's not found, display an inverse
-@@ -2843,6 +3366,14 @@
+@@ -2843,6 +3390,14 @@ static int vc_con_write_normal(struct vc
  	}
  
  	next_c = c;
@@ -717,7 +763,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	while (1) {
  		if (vc->vc_need_wrap || vc->vc_decim)
  			con_flush(vc, draw);
-@@ -2876,6 +3407,11 @@
+@@ -2876,6 +3431,11 @@ static int vc_con_write_normal(struct vc
  		if (!--width)
  			break;
  
@@ -729,7 +775,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		/* A space is printed in the second column */
  		tc = conv_uni_to_pc(vc, ' ');
  		if (tc < 0)
-@@ -2926,6 +3462,10 @@
+@@ -2926,6 +3486,10 @@ static int do_con_write(struct tty_struc
  	if (con_is_fg(vc))
  		hide_cursor(vc);
  
@@ -740,7 +786,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	param.vc = vc;
  
  	while (!tty->flow.stopped && count) {
-@@ -3532,7 +4072,12 @@
+@@ -3532,7 +4096,12 @@ static int __init con_init(void)
  		tty_port_init(&vc->port);
  		visual_init(vc, currcons, true);
  		/* Assuming vc->vc_{cols,rows,screenbuf_size} are sane here. */
@@ -754,7 +800,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		vc_init(vc, vc->vc_rows, vc->vc_cols,
  			currcons || !vc->vc_sw->con_save_screen);
  	}
-@@ -4743,6 +5288,14 @@
+@@ -4743,6 +5312,14 @@ u16 screen_glyph(const struct vc_data *v
  	u16 w = scr_readw(screenpos(vc, offset, true));
  	u16 c = w & 0xff;
  
@@ -782,7 +828,7 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  #include <asm/types.h>
  #include "fbcon.h"
  
-@@ -43,6 +46,65 @@
+@@ -43,6 +46,63 @@ static void update_attr(u8 *dst, u8 *src
  	}
  }
  
@@ -833,8 +879,6 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
 +			offset += cellsize_utf;
 +		if (ops && offset + cellsize_utf > ops->fd_size_utf)
 +			return src;
-+		if (font && c_utf >= font->charcount)
-+			return src;
 +		if (!ops && !font &&
 +		    offset + cellsize_utf > vc->vc_font.charcount * cellsize)
 +			return src;
@@ -848,7 +892,7 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  static void bit_bmove(struct vc_data *vc, struct fb_info *info, int sy,
  		      int sx, int dy, int dx, int height, int width)
  {
-@@ -84,11 +146,18 @@
+@@ -84,11 +144,18 @@ static inline void bit_putcs_aligned(str
  	u8 *src;
  
  	while (cnt--) {
@@ -872,7 +916,7 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  
  		if (attr) {
  			update_attr(buf, src, attr, vc);
-@@ -123,11 +192,18 @@
+@@ -123,11 +190,18 @@ static inline void bit_putcs_unaligned(s
  	u8 *src;
  
  	while (cnt--) {
@@ -896,7 +940,7 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  
  		if (attr) {
  			update_attr(buf, src, attr, vc);
-@@ -276,7 +352,14 @@
+@@ -276,7 +350,14 @@ static void bit_cursor(struct vc_data *v
  
   	c = scr_readw((u16 *) vc->vc_pos);
  	attribute = get_attribute(info, c);
@@ -913,10 +957,9 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  	if (ops->cursor_state.image.data != src ||
  	    ops->cursor_reset) {
 diff --git a/drivers/video/fbdev/core/fbcon.c b/drivers/video/fbdev/core/fbcon.c
-index c0143d3..d4e8e79 100644
 --- a/drivers/video/fbdev/core/fbcon.c
 +++ b/drivers/video/fbdev/core/fbcon.c
-@@ -702,7 +702,13 @@
+@@ -702,7 +702,13 @@ static void fbcon_release(struct fb_info
  		kfree(ops->cursor_state.mask);
  		kfree(ops->cursor_data);
  		kfree(ops->cursor_src);
@@ -931,7 +974,7 @@ index c0143d3..d4e8e79 100644
  		kfree(info->fbcon_par);
  		info->fbcon_par = NULL;
  	}
-@@ -1059,7 +1065,8 @@
+@@ -1059,7 +1065,8 @@ static void fbcon_init(struct vc_data *v
  
  	vc->vc_can_do_color = (fb_get_color_depth(&info->var, &info->fix)!=1);
  	vc->vc_complement_mask = vc->vc_can_do_color ? 0x7700 : 0x0800;
@@ -941,7 +984,7 @@ index c0143d3..d4e8e79 100644
  		vc->vc_hi_font_mask = 0;
  	} else {
  		vc->vc_hi_font_mask = 0x100;
-@@ -1304,10 +1311,18 @@
+@@ -1304,10 +1311,18 @@ static void fbcon_putcs(struct vc_data *
  
  static void fbcon_putc(struct vc_data *vc, int c, int ypos, int xpos)
  {
@@ -960,7 +1003,7 @@ index c0143d3..d4e8e79 100644
  }
  
  static void fbcon_clear_margins(struct vc_data *vc, int bottom_only)
-@@ -1390,7 +1405,8 @@
+@@ -1390,7 +1405,8 @@ static void fbcon_set_disp(struct fb_inf
  	ops->var = info->var;
  	vc->vc_can_do_color = (fb_get_color_depth(&info->var, &info->fix)!=1);
  	vc->vc_complement_mask = vc->vc_can_do_color ? 0x7700 : 0x0800;
@@ -970,7 +1013,7 @@ index c0143d3..d4e8e79 100644
  		vc->vc_hi_font_mask = 0;
  	} else {
  		vc->vc_hi_font_mask = 0x100;
-@@ -1612,6 +1628,10 @@
+@@ -1612,6 +1628,10 @@ static void fbcon_redraw_blit(struct vc_
  			}
  
  			scr_writew(c, d);
@@ -981,7 +1024,7 @@ index c0143d3..d4e8e79 100644
  			console_conditional_schedule();
  			s++;
  			d++;
-@@ -1634,6 +1654,7 @@
+@@ -1634,6 +1654,7 @@ static void fbcon_redraw_blit(struct vc_
  static void fbcon_redraw(struct vc_data *vc, struct fbcon_display *p,
  			 int line, int count, int offset)
  {
@@ -989,7 +1032,7 @@ index c0143d3..d4e8e79 100644
  	unsigned short *d = (unsigned short *)
  	    (vc->vc_origin + vc->vc_size_row * line);
  	unsigned short *s = d + offset;
-@@ -1656,7 +1677,11 @@
+@@ -1656,7 +1677,11 @@ static void fbcon_redraw(struct vc_data
  					start = s;
  				}
  			}
@@ -1002,7 +1045,7 @@ index c0143d3..d4e8e79 100644
  				if (s > start) {
  					fbcon_putcs(vc, start, s - start,
  						     line, x);
-@@ -1668,6 +1693,10 @@
+@@ -1668,6 +1693,10 @@ static void fbcon_redraw(struct vc_data
  				}
  			}
  			scr_writew(c, d);
@@ -1013,7 +1056,7 @@ index c0143d3..d4e8e79 100644
  			console_conditional_schedule();
  			s++;
  			d++;
-@@ -2159,7 +2188,8 @@
+@@ -2159,7 +2188,8 @@ static bool fbcon_switch(struct vc_data
  	vc->vc_can_do_color = (fb_get_color_depth(&info->var, &info->fix)!=1);
  	vc->vc_complement_mask = vc->vc_can_do_color ? 0x7700 : 0x0800;
  
@@ -1023,7 +1066,7 @@ index c0143d3..d4e8e79 100644
  		vc->vc_complement_mask <<= 1;
  
  	updatescrollmode(p, info, vc);
-@@ -2632,6 +2662,13 @@
+@@ -2632,6 +2662,13 @@ static void fbcon_set_palette(struct vc_
  
  static u16 *fbcon_screen_pos(const struct vc_data *vc, int offset)
  {
@@ -1038,10 +1081,9 @@ index c0143d3..d4e8e79 100644
  }
  
 diff --git a/drivers/video/fbdev/core/fbcon.h b/drivers/video/fbdev/core/fbcon.h
-index 0eaf54a..1e38d92 100644
 --- a/drivers/video/fbdev/core/fbcon.h
 +++ b/drivers/video/fbdev/core/fbcon.h
-@@ -81,10 +81,16 @@
+@@ -81,10 +81,16 @@ struct fbcon_ops {
  	int    cur_rotate;
  	char  *cursor_data;
  	u8    *fontbuffer;
@@ -1058,7 +1100,7 @@ index 0eaf54a..1e38d92 100644
  };
      /*
       *  Attribute Decoding
-@@ -187,6 +193,10 @@
+@@ -187,6 +193,10 @@ extern void fbcon_set_tileops(struct vc_
  #endif
  extern void fbcon_set_bitops(struct fbcon_ops *ops);
  extern int  soft_cursor(struct fb_info *info, struct fb_cursor *cursor);
@@ -1070,10 +1112,9 @@ index 0eaf54a..1e38d92 100644
  #define FBCON_ATTRIBUTE_UNDERLINE 1
  #define FBCON_ATTRIBUTE_REVERSE   2
 diff --git a/drivers/video/fbdev/core/fbcon_ccw.c b/drivers/video/fbdev/core/fbcon_ccw.c
-index 2789ace..ec68dbc 100644
 --- a/drivers/video/fbdev/core/fbcon_ccw.c
 +++ b/drivers/video/fbdev/core/fbcon_ccw.c
-@@ -105,7 +105,13 @@
+@@ -105,7 +105,13 @@ static inline void ccw_putcs_aligned(str
  	u8 *src;
  
  	while (cnt--) {
@@ -1088,7 +1129,7 @@ index 2789ace..ec68dbc 100644
  
  		if (attr) {
  			ccw_update_attr(buf, src, attr, vc);
-@@ -237,7 +243,14 @@
+@@ -237,7 +243,14 @@ static void ccw_cursor(struct vc_data *v
  
   	c = scr_readw((u16 *) vc->vc_pos);
  	attribute = get_attribute(info, c);
@@ -1105,10 +1146,9 @@ index 2789ace..ec68dbc 100644
  	if (ops->cursor_state.image.data != src ||
  	    ops->cursor_reset) {
 diff --git a/drivers/video/fbdev/core/fbcon_cw.c b/drivers/video/fbdev/core/fbcon_cw.c
-index 86a254c..565cda9 100644
 --- a/drivers/video/fbdev/core/fbcon_cw.c
 +++ b/drivers/video/fbdev/core/fbcon_cw.c
-@@ -90,7 +90,13 @@
+@@ -90,7 +90,13 @@ static inline void cw_putcs_aligned(stru
  	u8 *src;
  
  	while (cnt--) {
@@ -1123,7 +1163,7 @@ index 86a254c..565cda9 100644
  
  		if (attr) {
  			cw_update_attr(buf, src, attr, vc);
-@@ -220,7 +226,14 @@
+@@ -220,7 +226,14 @@ static void cw_cursor(struct vc_data *vc
  
   	c = scr_readw((u16 *) vc->vc_pos);
  	attribute = get_attribute(info, c);
@@ -1229,7 +1269,7 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
  static int fbcon_rotate_font(struct fb_info *info, struct vc_data *vc)
  {
  	struct fbcon_ops *ops = info->fbcon_par;
-@@ -46,11 +122,22 @@
+@@ -46,11 +122,22 @@ static int fbcon_rotate_font(struct fb_i
  		info->fbops->fb_sync(info);
  
  	if (ops->fd_size < d_cellsize * len) {
@@ -1254,7 +1294,7 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
  
  		if (dst == NULL) {
  			err = -ENOMEM;
-@@ -92,6 +179,11 @@
+@@ -92,6 +179,11 @@ static int fbcon_rotate_font(struct fb_i
  		break;
  	}
  
@@ -1267,10 +1307,9 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
  	return err;
  }
 diff --git a/drivers/video/fbdev/core/fbcon_ud.c b/drivers/video/fbdev/core/fbcon_ud.c
-index 23bc045..6e7eaa5 100644
 --- a/drivers/video/fbdev/core/fbcon_ud.c
 +++ b/drivers/video/fbdev/core/fbcon_ud.c
-@@ -92,7 +92,13 @@
+@@ -92,7 +92,13 @@ static inline void ud_putcs_aligned(stru
  	u8 *src;
  
  	while (cnt--) {
@@ -1285,7 +1324,7 @@ index 23bc045..6e7eaa5 100644
  
  		if (attr) {
  			ud_update_attr(buf, src, attr, vc);
-@@ -127,7 +133,13 @@
+@@ -127,7 +133,13 @@ static inline void ud_putcs_unaligned(st
  	u8 *src;
  
  	while (cnt--) {
@@ -1300,7 +1339,7 @@ index 23bc045..6e7eaa5 100644
  
  		if (attr) {
  			ud_update_attr(buf, src, attr, vc);
-@@ -268,7 +280,14 @@
+@@ -268,7 +280,14 @@ static void ud_cursor(struct vc_data *vc
  
   	c = scr_readw((u16 *) vc->vc_pos);
  	attribute = get_attribute(info, c);
@@ -1317,10 +1356,9 @@ index 23bc045..6e7eaa5 100644
  	if (ops->cursor_state.image.data != src ||
  	    ops->cursor_reset) {
 diff --git a/include/linux/font.h b/include/linux/font.h
-index abf1442..9b19cae 100644
 --- a/include/linux/font.h
 +++ b/include/linux/font.h
-@@ -35,6 +35,10 @@
+@@ -35,6 +35,10 @@ struct font_desc {
  #define FONT6x10_IDX	10
  #define TER16x32_IDX	11
  #define FONT6x8_IDX	12
@@ -1331,7 +1369,7 @@ index abf1442..9b19cae 100644
  
  extern const struct font_desc	font_vga_8x8,
  			font_vga_8x16,
-@@ -49,6 +53,10 @@
+@@ -49,6 +53,10 @@ extern const struct font_desc	font_vga_8
  			font_6x10,
  			font_ter_16x32,
  			font_6x8;
@@ -1343,10 +1381,9 @@ index abf1442..9b19cae 100644
  /* Find a font with a specific name */
  
 diff --git a/lib/fonts/Kconfig b/lib/fonts/Kconfig
-index c035fde..f6fd619 100644
 --- a/lib/fonts/Kconfig
 +++ b/lib/fonts/Kconfig
-@@ -125,6 +125,38 @@
+@@ -125,6 +125,38 @@ config FONT_6x8
  	help
  	  This font is useful for small displays (OLED).
  
@@ -1385,7 +1422,7 @@ index c035fde..f6fd619 100644
  config FONT_AUTOSELECT
  	def_bool y
  	depends on !FONT_8x8
-@@ -139,6 +164,8 @@
+@@ -139,6 +171,8 @@ config FONT_AUTOSELECT
  	depends on !FONT_10x18
  	depends on !FONT_TER16x32
  	depends on !FONT_6x8
@@ -1395,10 +1432,9 @@ index c035fde..f6fd619 100644
  
  endif # FONT_SUPPORT
 diff --git a/lib/fonts/Makefile b/lib/fonts/Makefile
-index e16f684..3e1091d 100644
 --- a/lib/fonts/Makefile
 +++ b/lib/fonts/Makefile
-@@ -16,6 +16,8 @@ font-objs-$(CONFIG_FONT_MINI_4x6)  += font_mini_4x6.o
+@@ -16,6 +16,8 @@ font-objs-$(CONFIG_FONT_MINI_4x6)  += fo
  font-objs-$(CONFIG_FONT_6x10)      += font_6x10.o
  font-objs-$(CONFIG_FONT_TER16x32)  += font_ter16x32.o
  font-objs-$(CONFIG_FONT_6x8)       += font_6x8.o
@@ -1408,8 +1444,6 @@ index e16f684..3e1091d 100644
  font-objs += $(font-objs-y)
  
 diff --git a/lib/fonts/font_cjk_16x16.c b/lib/fonts/font_cjk_16x16.c
-new file mode 100644
-index 0000000..a0c56bd
 --- /dev/null
 +++ b/lib/fonts/font_cjk_16x16.c
 @@ -0,0 +1,27 @@
@@ -1441,8 +1475,6 @@ index 0000000..a0c56bd
 +	.pref	= 20, /* make it big enough to be chosen */
 +};
 diff --git a/lib/fonts/font_cjk_32x32.c b/lib/fonts/font_cjk_32x32.c
-new file mode 100644
-index 0000000..88ba3f2
 --- /dev/null
 +++ b/lib/fonts/font_cjk_32x32.c
 @@ -0,0 +1,27 @@
@@ -1474,10 +1506,9 @@ index 0000000..88ba3f2
 +	.pref	= -1,
 +};
 diff --git a/lib/fonts/fonts.c b/lib/fonts/fonts.c
-index 5f4b07b..76905da 100644
 --- a/lib/fonts/fonts.c
 +++ b/lib/fonts/fonts.c
-@@ -60,6 +60,12 @@ static const struct font_desc *fonts[] = {
+@@ -60,6 +60,12 @@ static const struct font_desc *fonts[] =
  #ifdef CONFIG_FONT_6x8
  	&font_6x8,
  #endif
