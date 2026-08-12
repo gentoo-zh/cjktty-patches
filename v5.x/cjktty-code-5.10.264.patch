@@ -450,7 +450,7 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  #include <asm/types.h>
  #include "fbcon.h"
  
-@@ -43,6 +46,62 @@ static void update_attr(u8 *dst, u8 *src
+@@ -43,6 +46,64 @@ static void update_attr(u8 *dst, u8 *src
  	}
  }
  
@@ -498,7 +498,9 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
 +		offset = (size_t)c_utf * cellsize_utf * 2;
 +		if (ch == 0xfe)
 +			offset += cellsize_utf;
-+		if (ops && offset + cellsize_utf > ops->fd_size_utf)
++		if (ops && offset + cellsize_utf >
++		    (fontdata == ops->fontbuffer_utf ?
++		     ops->fd_size_utf : ops->fd_size))
 +			return src;
 +		if (!ops && !font &&
 +		    offset + cellsize_utf > vc->vc_font.charcount * cellsize)
@@ -513,7 +515,7 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  static void bit_bmove(struct vc_data *vc, struct fb_info *info, int sy,
  		      int sx, int dy, int dx, int height, int width)
  {
-@@ -84,11 +143,18 @@ static inline void bit_putcs_aligned(str
+@@ -84,11 +145,18 @@ static inline void bit_putcs_aligned(str
  	u8 *src;
  
  	while (cnt--) {
@@ -537,7 +539,7 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  
  		if (attr) {
  			update_attr(buf, src, attr, vc);
-@@ -123,11 +189,18 @@ static inline void bit_putcs_unaligned(s
+@@ -123,11 +191,18 @@ static inline void bit_putcs_unaligned(s
  	u8 *src;
  
  	while (cnt--) {
@@ -561,7 +563,7 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  
  		if (attr) {
  			update_attr(buf, src, attr, vc);
-@@ -276,7 +349,14 @@ static void bit_cursor(struct vc_data *v
+@@ -276,7 +351,14 @@ static void bit_cursor(struct vc_data *v
  
   	c = scr_readw((u16 *) vc->vc_pos);
  	attribute = get_attribute(info, c);
@@ -577,7 +579,7 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  
  	if (ops->cursor_state.image.data != src ||
  	    ops->cursor_reset) {
-@@ -433,4 +513,3 @@ void fbcon_set_bitops(struct fbcon_ops *
+@@ -433,4 +515,3 @@ void fbcon_set_bitops(struct fbcon_ops *
  }
  
  EXPORT_SYMBOL(fbcon_set_bitops);
@@ -941,7 +943,7 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
  
 +#ifdef CONFIG_FONT_CJK
 +	if (IS_ENABLED(CONFIG_FONT_CJK) && ops->p->userfont)
-+		fbcon_rotate_font_utf(info, vc);
++		err = fbcon_rotate_font_utf(info, vc);
 +#endif
 +
  finished:

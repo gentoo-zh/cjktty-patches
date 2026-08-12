@@ -892,7 +892,7 @@ diff --git a/drivers/video/fbdev/core/fbcon.h b/drivers/video/fbdev/core/fbcon.h
 diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/fbcon_rotate.c
 --- a/drivers/video/fbdev/core/fbcon_rotate.c
 +++ b/drivers/video/fbdev/core/fbcon_rotate.c
-@@ -11,10 +11,69 @@
+@@ -11,10 +11,79 @@
  #include <linux/errno.h>
  #include <linux/fb.h>
  #include <linux/font.h>
@@ -905,17 +905,20 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
  #include "fbcon_rotate.h"
  
 +#ifdef CONFIG_FONT_CJK
-+static void fbcon_rotate_font_utf(struct fb_info *info, struct vc_data *vc)
++static int fbcon_rotate_font_utf(struct fb_info *info, struct vc_data *vc)
 +{
 +	struct fbcon_par *par = info->fbcon_par;
 +	unsigned int cellsize = font_glyph_size(vc->vc_font.width, vc->vc_font.height);
 +	const char *fontname = (cellsize < 64) ? "CJK16x16" : "CJK32x32";
 +	const struct font_desc *font_cjk = find_font(fontname);
 +	unsigned char *buf;
++	int ret;
 +
 +	par->rotated.fontdata_utf = NULL;
-+	if (!font_cjk || !font_cjk->data)
++	if (!font_cjk || !font_cjk->data) {
++		ret = -ENOENT;
 +		goto invalidate;
++	}
 +
 +	unsigned int d_cellsize;
 +	size_t size;
@@ -924,8 +927,10 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
 +	if (par->rotated.buf_rotate % 2)
 +		d_cellsize = font_glyph_size(font_cjk->height, font_cjk->width);
 +
-+	if (check_mul_overflow(font_cjk->charcount, d_cellsize, &size))
++	if (check_mul_overflow(font_cjk->charcount, d_cellsize, &size)) {
++		ret = -EOVERFLOW;
 +		goto invalidate;
++	}
 +
 +	if (!par->rotated.buf_utf || size > par->rotated.bufsize_utf) {
 +		kvfree(par->rotated.buf_utf);
@@ -933,8 +938,10 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
 +		par->rotated.bufsize_utf = 0;
 +
 +		buf = kvmalloc_array(font_cjk->charcount, d_cellsize, GFP_KERNEL);
-+		if (!buf)
++		if (!buf) {
++			ret = -ENOMEM;
 +			goto invalidate;
++		}
 +
 +		par->rotated.buf_utf = buf;
 +		par->rotated.bufsize_utf = size;
@@ -945,30 +952,36 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
 +			       par->rotated.buf_rotate,
 +			       par->rotated.buf_utf,
 +			       &par->rotated.bufsize_utf);
-+	if (IS_ERR(buf))
++	if (IS_ERR(buf)) {
++		ret = PTR_ERR(buf);
 +		goto invalidate;
++	}
 +	par->rotated.buf_utf = buf;
 +	par->rotated.fontdata_utf = font_cjk->data;
-+	return;
++	return 0;
 +
 +invalidate:
 +	kvfree(par->rotated.buf_utf);
 +	par->rotated.buf_utf = NULL;
 +	par->rotated.bufsize_utf = 0;
 +	par->rotated.fontdata_utf = NULL;
++	return ret;
 +}
 +#endif
 +
  int fbcon_rotate_font(struct fb_info *info, struct vc_data *vc)
  {
  	struct fbcon_par *par = info->fbcon_par;
-@@ -40,6 +99,10 @@ int fbcon_rotate_font(struct fb_info *in
+@@ -40,6 +109,13 @@ int fbcon_rotate_font(struct fb_info *in
  	}
  
  	par->rotated.buf = buf;
 +#ifdef CONFIG_FONT_CJK
-+	if (IS_ENABLED(CONFIG_FONT_CJK))
-+		fbcon_rotate_font_utf(info, vc);
++	if (IS_ENABLED(CONFIG_FONT_CJK)) {
++		ret = fbcon_rotate_font_utf(info, vc);
++		if (ret)
++			goto err_kfree;
++	}
 +#endif
  
  	return 0;
