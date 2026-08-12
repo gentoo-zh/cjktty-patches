@@ -765,7 +765,7 @@ index e68106673..8ff11d119 100644
  		kfree(info->fbcon_par);
  		info->fbcon_par = NULL;
  	}
-@@ -1078,7 +1078,7 @@ static void fbcon_init(struct vc_data *vc, bool init)
+@@ -1078,7 +1079,7 @@ static void fbcon_init(struct vc_data *vc, bool init)
  
  	vc->vc_can_do_color = (fb_get_color_depth(&info->var, &info->fix)!=1);
  	vc->vc_complement_mask = vc->vc_can_do_color ? 0x7700 : 0x0800;
@@ -774,7 +774,7 @@ index e68106673..8ff11d119 100644
  		vc->vc_hi_font_mask = 0;
  	} else {
  		vc->vc_hi_font_mask = 0x100;
-@@ -1400,7 +1400,7 @@ static void fbcon_set_disp(struct fb_info *info, struct fb_var_screeninfo *var,
+@@ -1400,7 +1401,7 @@ static void fbcon_set_disp(struct fb_info *info, struct fb_var_screeninfo *var,
  	ops->var = info->var;
  	vc->vc_can_do_color = (fb_get_color_depth(&info->var, &info->fix)!=1);
  	vc->vc_complement_mask = vc->vc_can_do_color ? 0x7700 : 0x0800;
@@ -783,7 +783,7 @@ index e68106673..8ff11d119 100644
  		vc->vc_hi_font_mask = 0;
  	} else {
  		vc->vc_hi_font_mask = 0x100;
-@@ -1622,6 +1622,8 @@ static void fbcon_redraw_blit(struct vc_data *vc, struct fb_info *info,
+@@ -1622,6 +1623,8 @@ static void fbcon_redraw_blit(struct vc_data *vc, struct fb_info *info,
  			}
  
  			scr_writew(c, d);
@@ -792,7 +792,7 @@ index e68106673..8ff11d119 100644
  			console_conditional_schedule();
  			s++;
  			d++;
-@@ -1643,6 +1645,7 @@ static void fbcon_redraw_blit(struct vc_data *vc, struct fb_info *info,
+@@ -1643,6 +1646,7 @@ static void fbcon_redraw_blit(struct vc_data *vc, struct fb_info *info,
  
  static void fbcon_redraw(struct vc_data *vc, int line, int count, int offset)
  {
@@ -800,7 +800,7 @@ index e68106673..8ff11d119 100644
  	unsigned short *d = (unsigned short *)
  	    (vc->vc_origin + vc->vc_size_row * line);
  	unsigned short *s = d + offset;
-@@ -1665,18 +1668,24 @@ static void fbcon_redraw(struct vc_data *vc, int line, int count, int offset)
+@@ -1665,18 +1669,24 @@ static void fbcon_redraw(struct vc_data *vc, int line, int count, int offset)
  					start = s;
  				}
  			}
@@ -834,7 +834,7 @@ index e68106673..8ff11d119 100644
  			console_conditional_schedule();
  			s++;
  			d++;
-@@ -2168,7 +2177,7 @@ static bool fbcon_switch(struct vc_data *vc)
+@@ -2168,7 +2178,7 @@ static bool fbcon_switch(struct vc_data *vc)
  	vc->vc_can_do_color = (fb_get_color_depth(&info->var, &info->fix)!=1);
  	vc->vc_complement_mask = vc->vc_can_do_color ? 0x7700 : 0x0800;
  

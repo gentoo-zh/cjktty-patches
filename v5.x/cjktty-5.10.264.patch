@@ -222,8 +222,14 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		softcursor_original = -1;
  	}
  }
-@@ -1145,7 +1241,10 @@ int vc_allocate(unsigned int currcons)	/
- 	    vc->vc_screenbuf_size > KMALLOC_MAX_SIZE || !vc->vc_screenbuf_size)
+@@ -1142,10 +1238,15 @@ int vc_allocate(unsigned int currcons)	/
+ 
+ 	err = -EINVAL;
+ 	if (vc->vc_cols > VC_MAXCOL || vc->vc_rows > VC_MAXROW ||
+-	    vc->vc_screenbuf_size > KMALLOC_MAX_SIZE || !vc->vc_screenbuf_size)
++	    vc->vc_screenbuf_size >
++		KMALLOC_MAX_SIZE / (IS_ENABLED(CONFIG_FONT_CJK) ? 2 : 1) ||
++	    !vc->vc_screenbuf_size)
  		goto err_free;
  	err = -ENOMEM;
 -	vc->vc_screenbuf = kzalloc(vc->vc_screenbuf_size, GFP_KERNEL);
@@ -234,7 +240,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	if (!vc->vc_screenbuf)
  		goto err_free;
  
-@@ -1197,8 +1296,10 @@ static int vc_do_resize(struct tty_struc
+@@ -1197,8 +1298,10 @@ static int vc_do_resize(struct tty_struc
  				unsigned int cols, unsigned int lines)
  {
  	unsigned long old_origin, new_origin, new_scr_end, rlth, rrem, err = 0;
@@ -245,9 +251,14 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	unsigned int new_cols, new_rows, new_row_size, new_screen_size;
  	unsigned int user;
  	unsigned short *oldscreen, *newscreen;
-@@ -1242,7 +1343,10 @@ static int vc_do_resize(struct tty_struc
+@@ -1240,9 +1343,14 @@ static int vc_do_resize(struct tty_struc
+ 		return resize_screen(vc, new_cols, new_rows, user);
+ 	}
  
- 	if (new_screen_size > KMALLOC_MAX_SIZE || !new_screen_size)
+-	if (new_screen_size > KMALLOC_MAX_SIZE || !new_screen_size)
++	if (new_screen_size >
++	    KMALLOC_MAX_SIZE / (IS_ENABLED(CONFIG_FONT_CJK) ? 2 : 1) ||
++	    !new_screen_size)
  		return -EINVAL;
 -	newscreen = kzalloc(new_screen_size, GFP_USER);
 +	if (IS_ENABLED(CONFIG_FONT_CJK))
@@ -257,7 +268,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	if (!newscreen)
  		return -ENOMEM;
  
-@@ -1259,6 +1363,9 @@ static int vc_do_resize(struct tty_struc
+@@ -1259,6 +1367,9 @@ static int vc_do_resize(struct tty_struc
  
  	old_rows = vc->vc_rows;
  	old_row_size = vc->vc_size_row;
@@ -267,7 +278,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  
  	err = resize_screen(vc, new_cols, new_rows, user);
  	if (err) {
-@@ -1296,6 +1403,11 @@ static int vc_do_resize(struct tty_struc
+@@ -1296,6 +1407,11 @@ static int vc_do_resize(struct tty_struc
  	} else
  		first_copied_row = 0;
  	end = old_origin + old_row_size * min(old_rows, new_rows);
@@ -279,7 +290,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  
  	vc_uniscr_copy_area(new_uniscr, new_cols, new_rows,
  			    get_vc_uniscr(vc), rlth/2, first_copied_row,
-@@ -1307,6 +1419,12 @@ static int vc_do_resize(struct tty_struc
+@@ -1307,6 +1423,12 @@ static int vc_do_resize(struct tty_struc
  	while (old_origin < end) {
  		scr_memcpyw((unsigned short *) new_origin,
  			    (unsigned short *) old_origin, rlth);
@@ -292,7 +303,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		if (rrem)
  			scr_memsetw((void *)(new_origin + rlth),
  				    vc->vc_video_erase_char, rrem);
-@@ -1316,7 +1434,6 @@ static int vc_do_resize(struct tty_struc
+@@ -1316,7 +1438,6 @@ static int vc_do_resize(struct tty_struc
  	if (new_scr_end > new_origin)
  		scr_memsetw((void *)new_origin, vc->vc_video_erase_char,
  			    new_scr_end - new_origin);
@@ -300,7 +311,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	vc->vc_screenbuf = newscreen;
  	vc->vc_screenbuf_size = new_screen_size;
  	set_origin(vc);
-@@ -2825,6 +2942,8 @@ static int vc_con_write_normal(struct vc
+@@ -2825,6 +2946,8 @@ static int vc_con_write_normal(struct vc
  			 * end up with having question marks only.
  			 */
  			tc = c;
@@ -309,7 +320,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		} else {
  			/*
  			 * Display U+FFFD. If it's not found, display an inverse
-@@ -2844,6 +2963,14 @@ static int vc_con_write_normal(struct vc
+@@ -2844,6 +2967,14 @@ static int vc_con_write_normal(struct vc
  	}
  
  	next_c = c;
@@ -324,7 +335,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	while (1) {
  		if (vc->vc_need_wrap || vc->vc_decim)
  			con_flush(vc, draw);
-@@ -2877,11 +3004,17 @@ static int vc_con_write_normal(struct vc
+@@ -2877,11 +3008,17 @@ static int vc_con_write_normal(struct vc
  		if (!--width)
  			break;
  
@@ -342,7 +353,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	}
  	notify_write(vc, c);
  
-@@ -2927,6 +3060,10 @@ static int do_con_write(struct tty_struc
+@@ -2927,6 +3064,10 @@ static int do_con_write(struct tty_struc
  	if (con_is_fg(vc))
  		hide_cursor(vc);
  
@@ -353,7 +364,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	param.vc = vc;
  
  	while (!tty->stopped && count) {
-@@ -3531,7 +3668,12 @@ static int __init con_init(void)
+@@ -3531,7 +3672,12 @@ static int __init con_init(void)
  		tty_port_init(&vc->port);
  		visual_init(vc, currcons, 1);
  		/* Assuming vc->vc_{cols,rows,screenbuf_size} are sane here. */
@@ -367,7 +378,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		vc_init(vc, vc->vc_rows, vc->vc_cols,
  			currcons || !vc->vc_sw->con_save_screen);
  	}
-@@ -4743,6 +4885,14 @@ u16 screen_glyph(const struct vc_data *v
+@@ -4743,6 +4889,14 @@ u16 screen_glyph(const struct vc_data *v
  	u16 w = scr_readw(screenpos(vc, offset, true));
  	u16 c = w & 0xff;
  
