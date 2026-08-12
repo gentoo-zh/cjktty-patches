@@ -1,0 +1,279 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quick:
+    name: Quick checks
+    runs-on: ubuntu-24.04
+    outputs:
+      ci_matrix: ${{ steps.matrix.outputs.matrix }}
+      cjk32_matrix: ${{ steps.cjk32-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Test patch selection
+        run: python3 tools/test-patch-selection.py
+
+      - name: Check generated support matrix
+        run: >-
+          python3 tools/gen-supported.py --check
+          --releases-file tools/testdata/releases-2026-08-11.json
+
+      - name: Test CI matrix
+        run: python3 tools/test-ci-matrix.py
+
+      - name: Test CI kernel cache paths
+        run: python3 tools/test-ci-cache.py
+
+      - name: Check the split patches still match their combined form
+        run: python3 tools/test-split-matches-combined.py
+
+      - name: Test patch splitter
+        env:
+          CJKTTY_LAB: ${{ runner.temp }}/cjktty
+        run: tools/test-split-patch.sh
+
+      - name: Generate CJK32 matrix
+        id: cjk32-matrix
+        run: echo "matrix=$(python3 tools/ci-matrix.py --all)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate CI matrix
+        id: matrix
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = pull_request ]; then
+            mapfile -t changed_paths < <(git diff --name-only "$BASE_SHA"...HEAD)
+            matrix=$(python3 tools/ci-matrix.py "${changed_paths[@]}")
+          else
+            matrix=$(python3 tools/ci-matrix.py --all)
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  cjk32:
+    name: CJK32 applies to Linux ${{ matrix.version }}
+    needs: quick
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.quick.outputs.cjk32_matrix).apply }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve kernel tarball path
+        id: tarball
+        env:
+          CJKTTY_TARBALLS: ${{ runner.temp }}/cjktty
+          KERNEL_VERSION: ${{ matrix.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          path=$(tools/fetch-kernel.sh --print-path "$KERNEL_VERSION" "$CJKTTY_TARBALLS")
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "name=${path##*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache immutable kernel tarball
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.tarball.outputs.path }}
+          key: linux-tarball-${{ runner.os }}-${{ steps.tarball.outputs.name }}
+
+      - name: Install apply-check dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends patch xz-utils
+
+      - name: Check the 32x32 data patch against a real kernel tree
+        env:
+          CJKTTY_LAB: ${{ runner.temp }}/cjktty
+          CJKTTY_TARBALLS: ${{ runner.temp }}/cjktty
+          KERNEL_VERSION: ${{ matrix.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CJKTTY_LAB"
+          work=$(mktemp -d "$CJKTTY_LAB/cjk32.XXXXXX")
+          trap 'rm -rf "$work"' EXIT
+          tarball=$(tools/fetch-kernel.sh "$KERNEL_VERSION" "$CJKTTY_TARBALLS")
+          tree="$work/linux-$KERNEL_VERSION"
+          mkdir "$tree"
+          tar -xf "$tarball" -C "$tree" --strip-components=1
+          python3 tools/test-cjk32-applies.py "$tree"
+
+  apply:
+    name: ${{ matrix.name }}
+    needs:
+      - quick
+      - cjk32
+    if: ${{ fromJSON(needs.quick.outputs.ci_matrix).apply_count > 0 }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.quick.outputs.ci_matrix).apply }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve kernel tarball path
+        id: tarball
+        env:
+          CJKTTY_TARBALLS: ${{ runner.temp }}/cjktty
+          KERNEL_VERSION: ${{ matrix.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          path=$(tools/fetch-kernel.sh --print-path "$KERNEL_VERSION" "$CJKTTY_TARBALLS")
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "name=${path##*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache immutable kernel tarballs
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.tarball.outputs.path }}
+          key: linux-tarball-${{ runner.os }}-${{ steps.tarball.outputs.name }}
+
+      - name: Install apply-check dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends patch xz-utils
+
+      - name: Apply selected patches
+        env:
+          CJKTTY_LAB: ${{ runner.temp }}/cjktty
+          CJKTTY_TARBALLS: ${{ runner.temp }}/cjktty
+          KERNEL_VERSION: ${{ matrix.version }}
+          PATCHES_JSON: ${{ toJSON(matrix.patches) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t patch_files < <(
+            python3 -c \
+              'import json, os; print(*json.loads(os.environ["PATCHES_JSON"]), sep="\n")'
+          )
+          tools/check-patches.sh "$KERNEL_VERSION" "${patch_files[@]}"
+
+  boot:
+    name: ${{ matrix.name }}
+    needs:
+      - quick
+      - apply
+    if: >-
+      ${{
+        always() &&
+        needs.quick.result == 'success' &&
+        needs.apply.result == 'success' &&
+        fromJSON(needs.quick.outputs.ci_matrix).boot_count > 0
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.quick.outputs.ci_matrix).boot }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve kernel tarball path
+        id: tarball
+        env:
+          CJKTTY_TARBALLS: ${{ runner.temp }}/cjktty
+          KERNEL_VERSION: ${{ matrix.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          path=$(tools/fetch-kernel.sh --print-path "$KERNEL_VERSION" "$CJKTTY_TARBALLS")
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "name=${path##*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache immutable kernel tarball
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.tarball.outputs.path }}
+          key: linux-tarball-${{ runner.os }}-${{ steps.tarball.outputs.name }}
+
+      - name: Install build and boot dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            bc bison build-essential cpio flex libelf-dev libssl-dev \
+            ovmf qemu-system-x86 qemu-utils socat
+
+      - name: Prepare OVMF firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=/usr/share/OVMF/OVMF_CODE_4M.fd
+          vars=/usr/share/OVMF/OVMF_VARS_4M.fd
+          [ -f "$code" ] || {
+            echo "OVMF code firmware not found at $code" >&2
+            exit 1
+          }
+          [ -f "$vars" ] || {
+            echo "OVMF variable firmware not found at $vars" >&2
+            exit 1
+          }
+          qemu-img convert -f raw -O qcow2 \
+            "$code" "${{ runner.temp }}/OVMF_CODE_4M.qcow2"
+          echo "OVMF_CODE=${{ runner.temp }}/OVMF_CODE_4M.qcow2" >> "$GITHUB_ENV"
+          echo "OVMF_VARS=$vars" >> "$GITHUB_ENV"
+
+      - name: Build and boot without KVM
+        env:
+          BOOT_TIMEOUT: 300
+          CJK32: ${{ matrix.cjk32 }}
+          SCRIPT: ${{ matrix.script }}
+          CJKTTY_LAB: ${{ runner.temp }}/cjktty
+          JOBS: 4
+          KERNEL_VERSION: ${{ matrix.version }}
+          PATCHES_JSON: ${{ toJSON(matrix.patches) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          QEMU_TCG_BINARY=$(command -v qemu-system-x86_64)
+          export QEMU_TCG_BINARY
+          # test-patch.sh keeps -enable-kvm for local runs; hosted runners use TCG.
+          qemu-system-x86_64() {
+            local arg
+            local -a args=()
+            for arg in "$@"; do
+              [ "$arg" = -enable-kvm ] || args+=("$arg")
+            done
+            "$QEMU_TCG_BINARY" -accel tcg,thread=multi "${args[@]}"
+          }
+          export -f qemu-system-x86_64
+          mapfile -t patch_files < <(
+            python3 -c \
+              'import json, os; print(*json.loads(os.environ["PATCHES_JSON"]), sep="\n")'
+          )
+          if [ "$SCRIPT" = tools/test-loadable-font.sh ]; then
+            # The proof applies its own patch and takes no patch arguments.
+            tools/test-loadable-font.sh
+          else
+            test_args=()
+            [ "$CJK32" = true ] && test_args+=(--cjk32)
+            "$SCRIPT" "${test_args[@]}" "$KERNEL_VERSION" "${patch_files[@]}"
+          fi
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }} failure
+          path: ${{ runner.temp }}/cjktty/out-${{ matrix.version }}
+          if-no-files-found: ignore
+          retention-days: 7

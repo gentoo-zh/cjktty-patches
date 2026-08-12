@@ -1,0 +1,109 @@
+name: Kernel release drift
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: kernel-release-drift
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check current kernel releases
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read kernel.org release feed
+        run: |
+          curl --fail --location --retry 3 --silent --show-error \
+            --output releases.json https://www.kernel.org/releases.json
+
+      - name: Cache kernel tarballs
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/kernel-tarballs
+          key: kernel-release-tarballs-${{ runner.os }}-${{ hashFiles('releases.json') }}
+          restore-keys: |
+            kernel-release-tarballs-${{ runner.os }}-
+
+      - name: Install apply-check dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends patch xz-utils
+
+      - name: Check release drift
+        id: drift
+        continue-on-error: true
+        run: |
+          tools/check-release-drift.py \
+            --releases-file releases.json \
+            --tarball-dir "${{ runner.temp }}/kernel-tarballs" \
+            --scratch-dir "${{ runner.temp }}" \
+            --report release-drift.md \
+            --issue-report release-drift-issue.md \
+            --json release-drift.json
+
+      - name: Add report to job summary
+        if: always() && hashFiles('release-drift.md') != ''
+        run: cat release-drift.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open, update, or close the drift issue
+        if: always() && hashFiles('release-drift.json') != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- cjktty-release-drift -->';
+            const title = 'Kernel patch drift';
+            const data = JSON.parse(fs.readFileSync('release-drift.json', 'utf8'));
+            if (data.summary.error_count > 0) {
+              core.warning('Operational errors prevented a complete drift result');
+              return;
+            }
+
+            const body = fs.readFileSync('release-drift-issue.md', 'utf8');
+            const {owner, repo} = context.repo;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'all',
+              per_page: 100,
+            });
+            const issue = issues.find(item => !item.pull_request && item.body?.includes(marker));
+            const drifted = data.summary.drift_count > 0;
+
+            if (!issue && drifted) {
+              await github.rest.issues.create({owner, repo, title, body});
+              return;
+            }
+            if (!issue) {
+              return;
+            }
+
+            const state = drifted ? 'open' : 'closed';
+            if (issue.title !== title || issue.body !== body || issue.state !== state) {
+              const update = {
+                owner,
+                repo,
+                issue_number: issue.number,
+                title,
+                body,
+                state,
+              };
+              if (issue.state !== state) {
+                update.state_reason = drifted ? 'reopened' : 'completed';
+              }
+              await github.rest.issues.update(update);
+            }
+
+      - name: Fail on patch drift or operational errors
+        if: steps.drift.outcome == 'failure'
+        run: exit 1
