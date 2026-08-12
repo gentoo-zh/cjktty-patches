@@ -1,15 +1,26 @@
 diff --git a/drivers/tty/vt/selection.c b/drivers/tty/vt/selection.c
 --- a/drivers/tty/vt/selection.c
 +++ b/drivers/tty/vt/selection.c
-@@ -220,6 +220,12 @@ static int vc_selection_store_chars(stru
+@@ -48,6 +48,13 @@ static struct vc_selection {
+ 	.start = -1,
+ };
+ 
++static bool is_cjk_continuation(const struct vc_data *vc, int offset)
++{
++	u16 glyph = scr_readw(screen_pos(vc, offset / 2, true));
++
++	return (glyph & (vc->vc_hi_font_mask | 0xff)) == 0xfe;
++}
++
+ /* clear_selection, highlight and highlight_pointer can be called
+    from interrupt (via scrollback/front) */
+ 
+@@ -220,6 +227,9 @@ static int vc_selection_store_chars(stru
  			}
  			obp = bp;
  		}
-+		/* A CJK glyph owns two cells and the second holds 0xfe, so skip
-+		 * on the marker rather than on the codepoint: U+00E9 is narrow.
-+		 */
 +		if (IS_ENABLED(CONFIG_FONT_CJK) && i + 2 <= vc_sel.end &&
-+		    (screen_glyph(vc_sel.cons, i + 2) & 0xff) == 0xfe)
++		    is_cjk_continuation(vc_sel.cons, i + 2))
 +			i += 2;
  	}
  	vc_sel.buf_len = bp - vc_sel.buffer;
@@ -31,7 +42,14 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  /* Called  from the keyboard irq path.. */
  static inline void scrolldelta(int lines)
  {
-@@ -375,6 +382,13 @@ static void vc_uniscr_putc(struct vc_dat
+@@ -369,12 +376,19 @@ static void vc_uniscr_set(struct vc_data
+ 	vc->vc_uni_screen = new_uniscr;
+ }
+ 
+-static void vc_uniscr_putc(struct vc_data *vc, char32_t uc)
++static void vc_uniscr_putc(struct vc_data *vc, char32_t uc, char32_t c_utf)
+ {
+ 	struct uni_screen *uniscr = get_vc_uniscr(vc);
  
  	if (uniscr)
  		uniscr->lines[vc->state.y][vc->state.x] = uc;
@@ -39,7 +57,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
 +		unsigned int offset = vc->state.y * vc->vc_size_row +
 +				      vc->state.x * 2;
 +
-+		scr_writew(uc <= 0xffff ? uc : 0xfffd,
++		scr_writew(c_utf <= 0xffff ? c_utf : 0xfffd,
 +			   screenpos_utf8(vc, offset));
 +	}
  }
@@ -311,18 +329,23 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	vc->vc_screenbuf = newscreen;
  	vc->vc_screenbuf_size = new_screen_size;
  	set_origin(vc);
-@@ -2825,6 +2946,8 @@ static int vc_con_write_normal(struct vc
- 			 * end up with having question marks only.
- 			 */
- 			tc = c;
-+		} else if (IS_ENABLED(CONFIG_FONT_CJK) && c > 0xff) {
-+			tc = 0xff;
- 		} else {
- 			/*
- 			 * Display U+FFFD. If it's not found, display an inverse
-@@ -2844,6 +2967,14 @@ static int vc_con_write_normal(struct vc
+@@ -2808,7 +2929,10 @@ static int vc_con_write_normal(struct vc
  	}
  
+ 	/* Now try to find out how to display it */
+-	tc = conv_uni_to_pc(vc, tc);
++	if (IS_ENABLED(CONFIG_FONT_CJK) && c > 0xff)
++		tc = 0xff;
++	else
++		tc = conv_uni_to_pc(vc, tc);
+ 	if (tc & ~charmask) {
+ 		if (tc == -1 || tc == -2)
+ 			return -1; /* nothing to display */
+@@ -2842,8 +2966,15 @@ static int vc_con_write_normal(struct vc
+ 			}
+ 		}
+ 	}
+-
  	next_c = c;
 +	if (IS_ENABLED(CONFIG_FONT_CJK)) {
 +		next_c = (c <= 0xffff) ? c : 0xfffd;
@@ -335,25 +358,37 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	while (1) {
  		if (vc->vc_need_wrap || vc->vc_decim)
  			con_flush(vc, draw);
-@@ -2877,11 +3008,17 @@ static int vc_con_write_normal(struct vc
+@@ -2853,7 +2984,7 @@ static int vc_con_write_normal(struct vc
+ 		}
+ 		if (vc->vc_decim)
+ 			insert_char(vc, 1);
+-		vc_uniscr_putc(vc, next_c);
++		vc_uniscr_putc(vc, next_c, c);
+ 
+ 		if (himask)
+ 			tc = ((tc & 0x100) ? himask : 0) |
+@@ -2877,11 +3008,16 @@ static int vc_con_write_normal(struct vc
  		if (!--width)
  			break;
  
-+		if (IS_ENABLED(CONFIG_FONT_CJK)) {
+-		/* A space is printed in the second column */
+-		tc = conv_uni_to_pc(vc, ' ');
+-		if (tc < 0)
+-			tc = ' ';
++		if (IS_ENABLED(CONFIG_FONT_CJK))
 +			tc = 0xfe;
-+			continue;
++		else {
++			/* A space is printed in the second column */
++			tc = conv_uni_to_pc(vc, ' ');
++			if (tc < 0)
++				tc = ' ';
 +		}
-+
- 		/* A space is printed in the second column */
- 		tc = conv_uni_to_pc(vc, ' ');
- 		if (tc < 0)
- 			tc = ' ';
  		next_c = ' ';
 +
  	}
  	notify_write(vc, c);
  
-@@ -2927,6 +3064,10 @@ static int do_con_write(struct tty_struc
+@@ -2927,6 +3063,10 @@ static int do_con_write(struct tty_struc
  	if (con_is_fg(vc))
  		hide_cursor(vc);
  
@@ -364,7 +399,16 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	param.vc = vc;
  
  	while (!tty->stopped && count) {
-@@ -3531,7 +3672,12 @@ static int __init con_init(void)
+@@ -3131,7 +3271,7 @@ static void vt_console_print(struct cons
+ 			if (c == 10 || c == 13)
+ 				continue;
+ 		}
+-		vc_uniscr_putc(vc, c);
++		vc_uniscr_putc(vc, c, c);
+ 		scr_writew((vc->vc_attr << 8) + c, (unsigned short *)vc->vc_pos);
+ 		notify_write(vc, c);
+ 		cnt++;
+@@ -3531,7 +3671,12 @@ static int __init con_init(void)
  		tty_port_init(&vc->port);
  		visual_init(vc, currcons, 1);
  		/* Assuming vc->vc_{cols,rows,screenbuf_size} are sane here. */
@@ -378,7 +422,7 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  		vc_init(vc, vc->vc_rows, vc->vc_cols,
  			currcons || !vc->vc_sw->con_save_screen);
  	}
-@@ -4743,6 +4889,14 @@ u16 screen_glyph(const struct vc_data *v
+@@ -4743,6 +4888,14 @@ u16 screen_glyph(const struct vc_data *v
  	u16 w = scr_readw(screenpos(vc, offset, true));
  	u16 c = w & 0xff;
  
