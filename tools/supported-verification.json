@@ -1,5 +1,45 @@
 [
   {
+    "kernel": "7.2",
+    "stage": "stage-1",
+    "date": "2026-08-17",
+    "digests": {
+      "v7.x/cjktty-7.2.patch": "578840df65bf4197a301dda8e5fd985cbea22a1267cdba6169a058af9c6a0b1c"
+    }
+  },
+  {
+    "kernel": "7.2",
+    "stage": "stage-2",
+    "date": "2026-08-17",
+    "digests": {
+      "v7.x/cjktty-7.2.patch": "578840df65bf4197a301dda8e5fd985cbea22a1267cdba6169a058af9c6a0b1c"
+    }
+  },
+  {
+    "kernel": "7.2",
+    "form": "split",
+    "stage": "stage-1",
+    "date": "2026-08-17",
+    "font_patch": "cjktty-font-unifont-15.1.04.patch",
+    "code_patch": "v7.x/cjktty-code-7.2.patch",
+    "digests": {
+      "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
+      "v7.x/cjktty-code-7.2.patch": "58ee643287a33180a47b1d1cf20fa4b12814511a303366779013e573447a38d9"
+    }
+  },
+  {
+    "kernel": "7.2",
+    "form": "split",
+    "stage": "stage-2",
+    "date": "2026-08-17",
+    "font_patch": "cjktty-font-unifont-15.1.04.patch",
+    "code_patch": "v7.x/cjktty-code-7.2.patch",
+    "digests": {
+      "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
+      "v7.x/cjktty-code-7.2.patch": "58ee643287a33180a47b1d1cf20fa4b12814511a303366779013e573447a38d9"
+    }
+  },
+  {
     "kernel": "7.2-rc7",
     "stage": "stage-1",
     "date": "2026-08-12",
