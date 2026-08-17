@@ -18,6 +18,69 @@ EMPTY = {
     "apply_count": 0,
     "boot_count": 0,
 }
+
+
+def supported_rows() -> list[dict[str, str]]:
+    """Read SUPPORTED.md, which gen-supported.py writes from the pinned feed.
+
+    Taking the expectation from the published matrix rather than from a literal
+    keeps this test correct when a series changes channel: 7.1 stops being
+    stable the day 7.2 takes over, and a new longterm arrives without warning.
+    """
+    rows = []
+    for line in (TOOLS.parent / "SUPPORTED.md").read_text().splitlines():
+        if not line.startswith("| ") or line.startswith("|---"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if cells[0].startswith("Kernel.org series"):
+            continue
+        rows.append(
+            {
+                "series": cells[0],
+                "kernel": cells[1],
+                "combined": cells[2].strip("`"),
+                "code": cells[3].strip("`"),
+            }
+        )
+    return rows
+
+
+NEWEST = supported_rows()[0]
+
+
+def newest_case(label: str, changed: list[str], name: str, cjk32: bool) -> tuple:
+    """A change to a shared file is tested against the newest maintained kernel."""
+    apply_patches = [NEWEST["combined"]]
+    if cjk32:
+        apply_patches.append("cjktty-add-cjk32x32-font-data.patch")
+    return (
+        label,
+        changed,
+        {
+            "apply": {
+                "include": [
+                    {
+                        "name": f"Apply Linux {NEWEST['kernel']} {name}",
+                        "version": NEWEST["kernel"],
+                        "patches": apply_patches,
+                    }
+                ]
+            },
+            "boot": {
+                "include": [
+                    {
+                        "name": f"Build and boot Linux {NEWEST['kernel']} {name}",
+                        "version": NEWEST["kernel"],
+                        "patches": [NEWEST["combined"]],
+                        "cjk32": cjk32,
+                        "script": "tools/test-patch.sh",
+                    }
+                ]
+            },
+            "apply_count": 1,
+            "boot_count": 1,
+        },
+    )
 CASES = (
     (
         "changed 5.10 patch",
@@ -109,63 +172,6 @@ CASES = (
         },
     ),
     (
-        "CJK32 data patch",
-        ["cjktty-add-cjk32x32-font-data.patch"],
-        {
-            "apply": {
-                "include": [
-                    {
-                        "name": "Apply Linux 7.2-rc7 CJK32 patches",
-                        "version": "7.2-rc7",
-                        "patches": [
-                            "v7.x/cjktty-7.2-rc7.patch",
-                            "cjktty-add-cjk32x32-font-data.patch",
-                        ],
-                    }
-                ]
-            },
-            "boot": {
-                "include": [
-                    {
-                        "name": "Build and boot Linux 7.2-rc7 CJK32 patches",
-                        "version": "7.2-rc7",
-                        "patches": ["v7.x/cjktty-7.2-rc7.patch"],
-                        "cjk32": True, "script": "tools/test-patch.sh",
-                    }
-                ]
-            },
-            "apply_count": 1,
-            "boot_count": 1,
-        },
-    ),
-    (
-        "test tool",
-        ["tools/test-patch.sh"],
-        {
-            "apply": {
-                "include": [
-                    {
-                        "name": "Apply Linux 7.2-rc7 combined patch",
-                        "version": "7.2-rc7",
-                        "patches": ["v7.x/cjktty-7.2-rc7.patch"],
-                    }
-                ]
-            },
-            "boot": {
-                "include": [
-                    {
-                        "name": "Build and boot Linux 7.2-rc7 combined patch",
-                        "version": "7.2-rc7",
-                        "patches": ["v7.x/cjktty-7.2-rc7.patch"],
-                        "cjk32": False, "script": "tools/test-patch.sh",
-                    }
-                ]
-            },
-            "apply_count": 1,
-            "boot_count": 1,
-        },
-    ),
-    (
         "legacy patch",
         ["v3.x/cjktty-3.9.patch"],
         {
@@ -183,6 +189,17 @@ CASES = (
             "boot_count": 0,
         },
     ),
+)
+
+
+CASES += (
+    newest_case(
+        "CJK32 data patch",
+        ["cjktty-add-cjk32x32-font-data.patch"],
+        "CJK32 patches",
+        cjk32=True,
+    ),
+    newest_case("test tool", ["tools/test-patch.sh"], "combined patch", cjk32=False),
 )
 
 
@@ -256,16 +273,7 @@ def main() -> int:
             failures += 1
     full = run_all()
     full_versions = [entry["version"] for entry in full["apply"]["include"]]
-    expected_versions = [
-        "7.2-rc7",
-        "7.1.8",
-        "6.18.44",
-        "6.12.103",
-        "6.6.151",
-        "6.1.182",
-        "5.15.215",
-        "5.10.264",
-    ]
+    expected_versions = [row["kernel"] for row in supported_rows()]
     if (
         full_versions == expected_versions
         and full["apply_count"] == len(expected_versions)

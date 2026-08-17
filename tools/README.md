@@ -12,7 +12,7 @@ provides a reproducible invocation:
 
 ```sh
 tools/check-release-drift.py \
-  --releases-file tools/testdata/releases-2026-08-11.json \
+  --releases-file tools/testdata/releases-2026-08-17.json \
   --tarball-dir "$CJKTTY_LAB" --scratch-dir "$CJKTTY_LAB"
 ```
 
@@ -37,7 +37,7 @@ script does not build the kernel or render CJK; `test-patch.sh` and
 
 ```sh
 python3 tools/gen-supported.py \
-  --releases-file tools/testdata/releases-2026-08-11.json --check
+  --releases-file tools/testdata/releases-2026-08-17.json --check
 ```
 
 Generates `SUPPORTED.md` from the active kernel.org releases, the patch
