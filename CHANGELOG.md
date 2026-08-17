@@ -1,5 +1,13 @@
 # Changes
 
+## 2026.8.17 / 7.2
+
+- Add patches for Linux 7.2. The 7.2-rc7 patch applies to 7.2 unchanged, so the
+  new files carry the same bytes under the release name and a 7.2 tree no longer
+  applies a file named after a release candidate.
+- The combined form is planned to end with Linux 7.3. From that series the shared
+  font patch and the per-kernel code patch become the only published form.
+
 ## 2026.8.12 / 5.10.264, 5.15.215, 6.1.182, 6.6.151, 6.12.103, 6.18.44, 7.1.8, 7.2-rc7
 
 - When the primary cell held a marker, `screen_glyph()` returned the private-plane

@@ -19,6 +19,11 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
+### 2026.8.17 / 7.2
+
+- Add patches for Linux 7.2, carrying the bytes the 7.2-rc7 patch already had.
+- The combined form is planned to end with Linux 7.3.
+
 ### 2026.8.12 / 5.10.264, 5.15.215, 6.1.182, 6.6.151, 6.12.103, 6.18.44, 7.1.8, 7.2-rc7
 
 - When the primary cell held a marker, `screen_glyph()` returned the private-plane codepoint. The selection test `(screen_glyph(...) & 0xff) == 0xfe` therefore compared that codepoint's low byte and copied a CJK character twice unless the low byte happened to be `0xfe`. The new `is_cjk_continuation()` reads the raw primary word and compares `glyph & (vc_hi_font_mask | 0xff)` with `0xfe`.
@@ -69,6 +74,17 @@ From the kernel source root, with the patch repository at
 ```sh
 patch -p1 --fuzz=0 < ../cjktty-patches/v6.x/cjktty-6.18.patch
 ```
+
+The split form is one shared font patch and one code patch per kernel, and
+produces a byte-identical source tree:
+
+```sh
+patch -p1 --fuzz=0 < ../cjktty-patches/cjktty-font-unifont-15.1.04.patch
+patch -p1 --fuzz=0 < ../cjktty-patches/v6.x/cjktty-code-6.18.patch
+```
+
+The combined form is planned to end with Linux 7.3, after which only the split
+form is published.
 
 Enable all following kernel options:
 

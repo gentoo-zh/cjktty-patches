@@ -15,6 +15,11 @@ cjktty-patches 是一組 framebuffer console CJK 渲染補丁，供 `gentoo-zh/o
 
 **字型資料與原始碼分別存放在不同補丁中：八個核心共用一份 12 MB 字型補丁，每個核心各有一份 33–44 KB 原始碼補丁。**
 
+### 2026.8.17 / 7.2
+
+- 增加 Linux 7.2 的補丁，內容與 7.2-rc7 的補丁相同。
+- 合併形式預計在 Linux 7.3 終止。
+
 ### 2026.8.12 / 5.10.264, 5.15.215, 6.1.182, 6.6.151, 6.12.103, 6.18.44, 7.1.8, 7.2-rc7
 
 - `screen_glyph()` 在主儲存格含標記時改為回傳私有平面的碼位。選取檢查 `(screen_glyph(...) & 0xff) == 0xfe` 因此比較該碼位的低位元組，低位元組並非 `0xfe` 的 CJK 字元會複製兩次。新增的 `is_cjk_continuation()` 直接讀取主平面的原始字，並將 `glyph & (vc_hi_font_mask | 0xff)` 與 `0xfe` 比較。
@@ -63,6 +68,15 @@ cjktty-patches 是一組 framebuffer console CJK 渲染補丁，供 `gentoo-zh/o
 ```sh
 patch -p1 --fuzz=0 < ../cjktty-patches/v6.x/cjktty-6.18.patch
 ```
+
+拆分形式是一份共用字型補丁加上每個核心一份程式碼補丁，得到的原始碼樹逐位元組相同：
+
+```sh
+patch -p1 --fuzz=0 < ../cjktty-patches/cjktty-font-unifont-15.1.04.patch
+patch -p1 --fuzz=0 < ../cjktty-patches/v6.x/cjktty-code-6.18.patch
+```
+
+合併形式預計在 Linux 7.3 終止，此後只發布拆分形式。
 
 啟用以下所有核心設定選項：
 
