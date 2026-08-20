@@ -19,6 +19,11 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
+### 2026.8.20 / 5.10.265, 5.15.216, 6.1.183, 6.6.152, 6.12.104, 6.18.45, 7.1.9
+
+- Add patches for the point releases above.
+- Upstream clamps the cursor glyph index to `vc_font.charcount` in `bit_cursor()`, so seven branches rejected the hunk. `font_bits()` gains the bound the 6.1, 5.15 and 5.10 patches already carry.
+
 ### 2026.8.17 / 7.2
 
 - Add patches for Linux 7.2, carrying the bytes the 7.2-rc7 patch already had.

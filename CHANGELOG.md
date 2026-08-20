@@ -1,5 +1,12 @@
 # Changes
 
+## 2026.8.20 / 5.10.265, 5.15.216, 6.1.183, 6.6.152, 6.12.104, 6.18.45, 7.1.9
+
+- Add patches for the point releases above.
+- Upstream 2026-08-19 clamps the cursor glyph index to `vc_font.charcount` in
+  `bit_cursor()`, so seven branches rejected the hunk. `font_bits()` gains the
+  bound the 6.1, 5.15 and 5.10 patches already carry.
+
 ## 2026.8.17 / 7.2
 
 - Add patches for Linux 7.2. The 7.2-rc7 patch applies to 7.2 unchanged, so the
