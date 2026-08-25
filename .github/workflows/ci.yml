@@ -36,7 +36,7 @@ jobs:
       - name: Check generated support matrix
         run: >-
           python3 tools/gen-supported.py --check
-          --releases-file tools/testdata/releases-2026-08-20.json
+          --releases-file tools/testdata/releases-2026-08-24.json
 
       - name: Test CI matrix
         run: python3 tools/test-ci-matrix.py
