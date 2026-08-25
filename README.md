@@ -19,6 +19,16 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
+### 2026.8.24 / 6.1.184, 5.15.217
+
+- Add patches for the two point releases above. The other five in the same
+  batch reuse their existing patch: upstream left every file cjktty touches
+  unchanged.
+- Upstream 2026-08-23 backported the `struct fbcon_ops` to `struct fbcon_par`
+  rename into 6.1 and 5.15, so the fbcon front end rejected both patches. The
+  6.1 patch takes its fbcon family from 6.12.104; the 5.15 tree differs too
+  much for that, so its rejected hunks carry the rename instead.
+
 ### 2026.8.20 / 5.10.265, 5.15.216, 6.1.183, 6.6.152, 6.12.104, 6.18.45, 7.1.9
 
 - Add patches for the point releases above.
