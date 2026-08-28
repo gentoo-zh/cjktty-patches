@@ -144,7 +144,10 @@ strip "$initdir/init"
 step "boot"
 cp -f "$ovmf_vars" "$out/OVMF_VARS.fd"
 rm -f "$out/serial.log" "$out/console.ppm" "$out/monitor.sock"
-qemu-system-x86_64 -enable-kvm -m 2G -smp 2 -machine q35 \
+# -cpu max: init is statically linked against the host glibc, which on a
+# -march=native build carries AVX the default model lacks. 'host' would
+# do, but CI drops -enable-kvm and 'host' needs KVM; 'max' works on both.
+qemu-system-x86_64 -enable-kvm -cpu max -m 2G -smp 2 -machine q35 \
 	-drive "if=pflash,format=qcow2,readonly=on,file=$ovmf_code" \
 	-drive "if=pflash,format=raw,file=$out/OVMF_VARS.fd" \
 	-kernel "$tree/arch/x86/boot/bzImage" -initrd "$out/initramfs.gz" \
