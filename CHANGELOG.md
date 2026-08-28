@@ -1,5 +1,11 @@
 # Changes
 
+## 2026.8.28 / 5.10.267, 5.15.218, 6.1.185, 6.6.154, 6.12.106, 6.18.47, 7.1.11, 7.2.1
+
+- Record the 2026-08-27 point releases against the patches they already use.
+  Upstream left every file cjktty touches unchanged except `fbcon.c` in 7.1.11,
+  where it only removed two `EXPORT_SYMBOL` lines, so no patch needed a change.
+
 ## 2026.8.24 / 6.1.184, 5.15.217
 
 - Add patches for the two point releases above. The other five in the same
