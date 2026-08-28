@@ -1,5 +1,10 @@
 # Changes
 
+## 2026.8.29 / 5.10.268, 5.15.219, 6.1.186, 6.6.155, 6.12.107, 6.18.48, 7.1.12, 7.2.2
+
+- Record the 2026-08-28 point releases against the patches they already use.
+  Upstream left every file cjktty touches unchanged, so no patch needed one.
+
 ## 2026.8.28 / 5.10.267, 5.15.218, 6.1.185, 6.6.154, 6.12.106, 6.18.47, 7.1.11, 7.2.1
 
 - Record the 2026-08-27 point releases against the patches they already use.
