@@ -1,5 +1,16 @@
 # Changes
 
+## 2026.9.3 / 5.10.269, 5.15.220, 6.1.187, 6.6.156, 6.12.108, 6.18.49, 7.1.13, 7.2.3, 7.3-rc1
+
+- Record the 2026-09-02 point releases against the patches they already use.
+  Upstream left every file cjktty touches unchanged, so no patch needed one.
+- Add a patch for Linux 7.3-rc1. The 7.2 patch applies to the 7.3 merge window
+  with one hunk offset and no reject, so the new files carry the same changes.
+- Linux 7.1 reached end of life on 2026-09-02 and leaves the matrix. Its final
+  release still applies, builds and renders.
+- Teach `tools/regen.sh` the marker this repository actually uses for a new
+  file, a `-0,0` hunk rather than `--- /dev/null`, so a port can regenerate.
+
 ## 2026.8.29 / 5.10.268, 5.15.219, 6.1.186, 6.6.155, 6.12.107, 6.18.48, 7.1.12, 7.2.2
 
 - Record the 2026-08-28 point releases against the patches they already use.
