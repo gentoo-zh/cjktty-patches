@@ -85,9 +85,29 @@ def normalize_path(path: str) -> str:
     return normalized.as_posix()
 
 
-def maintained_kernels(records: dict[str, list[Verification]]) -> list[str]:
+def published_kernels(repo: Path) -> set[str]:
+    """Read the kernel column of SUPPORTED.md.
+
+    A series keeps its records after upstream ends it, so the records alone
+    cannot say which series is still maintained; the published matrix can.
+    """
+    published: set[str] = set()
+    for line in (repo / "SUPPORTED.md").read_text().splitlines():
+        if not line.startswith("| ") or line.startswith("|---"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) < 2 or cells[0].startswith("Kernel.org series"):
+            continue
+        published.add(cells[1])
+    return published
+
+
+def maintained_kernels(repo: Path, records: dict[str, list[Verification]]) -> list[str]:
+    published = published_kernels(repo)
     newest: dict[str, str] = {}
     for kernel in records:
+        if kernel not in published:
+            continue
         series = series_of(kernel)
         previous = newest.get(series)
         if previous is None or version_key(kernel) > version_key(previous):
@@ -224,7 +244,7 @@ def build_matrix(
     changed_paths: list[str],
     all_kernels: bool = False,
 ) -> dict[str, object]:
-    current = maintained_kernels(records)
+    current = maintained_kernels(repo, records)
     if not current:
         raise MatrixError("verification data has no maintained kernels")
     forms = validated_split_forms(repo, records)
