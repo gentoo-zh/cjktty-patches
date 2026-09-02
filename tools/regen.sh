@@ -41,6 +41,12 @@ while IFS= read -r line; do
 		"--- /dev/null"*)
 			[ -n "$current" ] && old_null["$current"]=1
 			;;
+		"@@ -0,0 "*)
+			# Every published cjktty patch writes a new file as `--- a/<path>`
+			# with a `-0,0` hunk rather than `--- /dev/null`, so the hunk header
+			# is the only marker regeneration can read.
+			[ -n "$current" ] && old_null["$current"]=1
+			;;
 		"+++ /dev/null"*)
 			[ -n "$current" ] && new_null["$current"]=1
 			;;
