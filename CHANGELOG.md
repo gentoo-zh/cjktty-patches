@@ -1,5 +1,20 @@
 # Changes
 
+## 2026.9.9 / 5.15.220, 6.1.187, 6.6.156, 6.12.109, 6.18.50, 7.2.4, 7.3-rc2
+
+- Take the codepoint from `vc_uni_lines` instead of a private plane reached by pointer
+  arithmetic past the screen buffer. One store cannot fall out of step with itself, so the
+  five synchronisation sites and the two-word `con_putc()` workaround are gone with it.
+- Clamp every glyph index to `vc_font.charcount` on the fallback path, choose a provider by
+  font geometry rather than by cell byte size, and treat glyph slots 254 and 255 as
+  continuation markers only where a fallback codepoint is actually stored.
+- Ask the loaded font before falling back, so a font that maps a codepoint above U+00FF keeps
+  its own glyph.
+- Drop the `CONFIG_FONT_CJK_32x32` option: without the separate data patch it built a font
+  that reported glyphs it did not have. `CONFIG_FONT_CJK_16x16` no longer defaults on.
+- Linux 5.10 keeps the previous patch. Its `struct fbcon_ops` renderer is too far from
+  `struct fbcon_par` for a mechanical port, and the series is near end of life.
+
 ## 2026.9.3 / 5.10.269, 5.15.220, 6.1.187, 6.6.156, 6.12.108, 6.18.49, 7.1.13, 7.2.3, 7.3-rc1
 
 - Record the 2026-09-02 point releases against the patches they already use.
