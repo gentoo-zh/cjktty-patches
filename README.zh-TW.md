@@ -20,7 +20,7 @@ cjktty-patches 是一組 framebuffer console CJK 渲染補丁，供 `gentoo-zh/o
 - 改由 `vc_uni_lines` 取得碼點，不再靠指標越過螢幕緩衝區去讀私有平面。單一來源不會和自己失步，因此五個同步點與 `con_putc()` 那個雙字繞法一併消失。
 - fallback 路徑上每個字形索引都以 `vc_font.charcount` 設限；提供者依字型幾何選取，不再依儲存格位元組大小；只有真正存有 fallback 碼點的位置才把字形槽 254 與 255 視為續接標記。
 - 先問已載入的字型，字型自己映射了 U+00FF 以上的碼點就用它的字形。
-- 移除 `CONFIG_FONT_CJK_32x32` 選項：缺少獨立資料補丁時它會編出一份宣稱有字形卻沒有的字型。`CONFIG_FONT_CJK_16x16` 不再預設開啟。
+- 未套用 `cjktty-add-cjk32x32-font-data.patch` 就設定 `CONFIG_FONT_CJK_32x32` 時建置直接失敗。以往它會編出一份 descriptor 宣稱有字形、資料卻是空的字型。`CONFIG_FONT_CJK_16x16` 不再預設開啟。
 - Linux 5.10 沿用原補丁。它的 `struct fbcon_ops` 渲染器與 `struct fbcon_par` 相距過遠，無法機械移植，且該系列接近終止維護。
 
 ### 2026.9.3 / 5.10.269, 5.15.220, 6.1.187, 6.6.156, 6.12.108, 6.18.49, 7.1.13, 7.2.3, 7.3-rc1
