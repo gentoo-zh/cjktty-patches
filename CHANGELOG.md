@@ -10,8 +10,9 @@
   continuation markers only where a fallback codepoint is actually stored.
 - Ask the loaded font before falling back, so a font that maps a codepoint above U+00FF keeps
   its own glyph.
-- Drop the `CONFIG_FONT_CJK_32x32` option: without the separate data patch it built a font
-  that reported glyphs it did not have. `CONFIG_FONT_CJK_16x16` no longer defaults on.
+- Fail the build when `CONFIG_FONT_CJK_32x32` is set without
+  `cjktty-add-cjk32x32-font-data.patch`. It used to compile a font whose descriptor reported
+  glyphs the empty data did not hold. `CONFIG_FONT_CJK_16x16` no longer defaults on.
 - Linux 5.10 keeps the previous patch. Its `struct fbcon_ops` renderer is too far from
   `struct fbcon_par` for a mechanical port, and the series is near end of life.
 
