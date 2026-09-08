@@ -1,21 +1,23 @@
 diff --git a/drivers/tty/vt/selection.c b/drivers/tty/vt/selection.c
 --- a/drivers/tty/vt/selection.c
 +++ b/drivers/tty/vt/selection.c
-@@ -48,6 +48,13 @@ static struct vc_selection {
+@@ -48,6 +48,15 @@ static struct vc_selection {
  	.start = -1,
  };
  
 +static bool is_cjk_continuation(const struct vc_data *vc, int offset)
 +{
-+	u16 glyph = scr_readw(screen_pos(vc, offset / 2, true));
++	bool continuation;
 +
-+	return (glyph & (vc->vc_hi_font_mask | 0xff)) == 0xfe;
++	vc_uniscr_get_cjk(vc, offset / vc->vc_size_row,
++			  offset % vc->vc_size_row / 2, &continuation);
++	return continuation;
 +}
 +
  /* clear_selection, highlight and highlight_pointer can be called
     from interrupt (via scrollback/front) */
  
-@@ -221,6 +228,9 @@ static int vc_selection_store_chars(stru
+@@ -221,6 +230,9 @@ static int vc_selection_store_chars(stru
  			}
  			obp = bp;
  		}
@@ -28,312 +30,7 @@ diff --git a/drivers/tty/vt/selection.c b/drivers/tty/vt/selection.c
 diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
 --- a/drivers/tty/vt/vt.c
 +++ b/drivers/tty/vt/vt.c
-@@ -297,6 +297,13 @@ static inline unsigned short *screenpos(
- 	return p;
- }
- 
-+static inline unsigned short *screenpos_utf8(const struct vc_data *vc,
-+		unsigned int offset)
-+{
-+	return (unsigned short *)((u8 *)vc->vc_screenbuf +
-+			vc->vc_screenbuf_size + offset);
-+}
-+
- /* Called  from the keyboard irq path.. */
- static inline void scrolldelta(int lines)
- {
-@@ -369,12 +376,19 @@ static void vc_uniscr_set(struct vc_data
- 	vc->vc_uni_screen = new_uniscr;
- }
- 
--static void vc_uniscr_putc(struct vc_data *vc, char32_t uc)
-+static void vc_uniscr_putc(struct vc_data *vc, char32_t uc, char32_t c_utf)
- {
- 	struct uni_screen *uniscr = get_vc_uniscr(vc);
- 
- 	if (uniscr)
- 		uniscr->lines[vc->state.y][vc->state.x] = uc;
-+	if (IS_ENABLED(CONFIG_FONT_CJK)) {
-+		unsigned int offset = vc->state.y * vc->vc_size_row +
-+				      vc->state.x * 2;
-+
-+		scr_writew(c_utf <= 0xffff ? c_utf : 0xfffd,
-+			   screenpos_utf8(vc, offset));
-+	}
- }
- 
- static void vc_uniscr_insert(struct vc_data *vc, unsigned int nr)
-@@ -388,6 +402,14 @@ static void vc_uniscr_insert(struct vc_d
- 		memmove(&ln[x + nr], &ln[x], (cols - x - nr) * sizeof(*ln));
- 		memset32(&ln[x], ' ', nr);
- 	}
-+	if (IS_ENABLED(CONFIG_FONT_CJK)) {
-+		unsigned short *ln = screenpos_utf8(vc,
-+				vc->state.y * vc->vc_size_row);
-+		unsigned int x = vc->state.x, cols = vc->vc_cols;
-+
-+		scr_memmovew(&ln[x + nr], &ln[x], (cols - x - nr) * 2);
-+		scr_memsetw(&ln[x], 0, nr * 2);
-+	}
- }
- 
- static void vc_uniscr_delete(struct vc_data *vc, unsigned int nr)
-@@ -401,6 +423,14 @@ static void vc_uniscr_delete(struct vc_d
- 		memmove(&ln[x], &ln[x + nr], (cols - x - nr) * sizeof(*ln));
- 		memset32(&ln[cols - nr], ' ', nr);
- 	}
-+	if (IS_ENABLED(CONFIG_FONT_CJK)) {
-+		unsigned short *ln = screenpos_utf8(vc,
-+				vc->state.y * vc->vc_size_row);
-+		unsigned int x = vc->state.x, cols = vc->vc_cols;
-+
-+		scr_memmovew(&ln[x], &ln[x + nr], (cols - x - nr) * 2);
-+		scr_memsetw(&ln[cols - nr], 0, nr * 2);
-+	}
- }
- 
- static void vc_uniscr_clear_line(struct vc_data *vc, unsigned int x,
-@@ -413,12 +443,16 @@ static void vc_uniscr_clear_line(struct
- 
- 		memset32(&ln[x], ' ', nr);
- 	}
-+	if (IS_ENABLED(CONFIG_FONT_CJK))
-+		scr_memsetw(screenpos_utf8(vc,
-+			vc->state.y * vc->vc_size_row + x * 2), 0, nr * 2);
- }
- 
- static void vc_uniscr_clear_lines(struct vc_data *vc, unsigned int y,
- 				  unsigned int nr)
- {
- 	struct uni_screen *uniscr = get_vc_uniscr(vc);
-+	unsigned int first = y, count = nr;
- 
- 	if (uniscr) {
- 		unsigned int cols = vc->vc_cols;
-@@ -426,6 +460,9 @@ static void vc_uniscr_clear_lines(struct
- 		while (nr--)
- 			memset32(uniscr->lines[y++], ' ', cols);
- 	}
-+	if (IS_ENABLED(CONFIG_FONT_CJK))
-+		scr_memsetw(screenpos_utf8(vc, first * vc->vc_size_row), 0,
-+			      count * vc->vc_size_row);
- }
- 
- static void vc_uniscr_scroll(struct vc_data *vc, unsigned int t, unsigned int b,
-@@ -457,7 +494,8 @@ static void vc_uniscr_scroll(struct vc_d
- 			}
- 			uniscr->lines[t + j] = tmp;
- 		}
--		vc_uniscr_clear_lines(vc, clear, nr);
-+		while (nr--)
-+			memset32(uniscr->lines[clear++], ' ', vc->vc_cols);
- 	}
- }
- 
-@@ -630,6 +668,22 @@ static void con_scroll(struct vc_data *v
- 	if (con_is_visible(vc) && vc->vc_sw->con_scroll(vc, t, b, dir, nr))
- 		return;
- 
-+	if (IS_ENABLED(CONFIG_FONT_CJK)) {
-+		unsigned int dst_row = t, src_row = t + nr;
-+		unsigned int clear_row = b - nr;
-+
-+		if (dir == SM_DOWN) {
-+			dst_row = t + nr;
-+			src_row = t;
-+			clear_row = t;
-+		}
-+		scr_memmovew(screenpos_utf8(vc, dst_row * vc->vc_size_row),
-+			      screenpos_utf8(vc, src_row * vc->vc_size_row),
-+			      (b - t - nr) * vc->vc_size_row);
-+		scr_memsetw(screenpos_utf8(vc, clear_row * vc->vc_size_row), 0,
-+			      nr * vc->vc_size_row);
-+	}
-+
- 	s = clear = (u16 *)(vc->vc_origin + vc->vc_size_row * t);
- 	d = (u16 *)(vc->vc_origin + vc->vc_size_row * (t + nr));
- 
-@@ -806,6 +860,9 @@ void complement_pos(struct vc_data *vc,
- {
- 	static int old_offset = -1;
- 	static unsigned short old;
-+#ifdef CONFIG_FONT_CJK
-+	static unsigned short old_utf;
-+#endif
- 	static unsigned short oldx, oldy;
- 
- 	WARN_CONSOLE_UNLOCKED();
-@@ -813,8 +870,14 @@ void complement_pos(struct vc_data *vc,
- 	if (old_offset != -1 && old_offset >= 0 &&
- 	    old_offset < vc->vc_screenbuf_size) {
- 		scr_writew(old, screenpos(vc, old_offset, true));
--		if (con_should_update(vc))
--			vc->vc_sw->con_putc(vc, old, oldy, oldx);
-+		if (con_should_update(vc)) {
-+			u32 glyph = old;
-+
-+#ifdef CONFIG_FONT_CJK
-+			glyph |= old_utf << 16;
-+#endif
-+			vc->vc_sw->con_putc(vc, glyph, oldy, oldx);
-+		}
- 		notify_update(vc);
- 	}
- 
-@@ -826,12 +889,20 @@ void complement_pos(struct vc_data *vc,
- 		unsigned short *p;
- 		p = screenpos(vc, offset, true);
- 		old = scr_readw(p);
-+#ifdef CONFIG_FONT_CJK
-+		old_utf = scr_readw(screenpos_utf8(vc, offset));
-+#endif
- 		new = old ^ vc->vc_complement_mask;
- 		scr_writew(new, p);
- 		if (con_should_update(vc)) {
-+			u32 glyph = new;
-+
- 			oldx = (offset >> 1) % vc->vc_cols;
- 			oldy = (offset >> 1) / vc->vc_cols;
--			vc->vc_sw->con_putc(vc, new, oldy, oldx);
-+#ifdef CONFIG_FONT_CJK
-+			glyph |= old_utf << 16;
-+#endif
-+			vc->vc_sw->con_putc(vc, glyph, oldy, oldx);
- 		}
- 		notify_update(vc);
- 	}
-@@ -884,17 +955,38 @@ static void add_softcursor(struct vc_dat
- 	if ((type & CUR_INVERT_FG_BG) && (i & CUR_FG) == ((i & CUR_BG) >> 4))
- 		i ^= CUR_FG;
- 	scr_writew(i, (u16 *)vc->vc_pos);
--	if (con_should_update(vc))
-+	if (con_should_update(vc)) {
-+#ifdef CONFIG_FONT_CJK
-+		unsigned int offset = vc->vc_pos - vc->vc_origin;
-+		u16 glyph[2] = {
-+			i, scr_readw(screenpos_utf8(vc, offset))
-+		};
-+
-+		vc->vc_sw->con_putcs(vc, glyph, 1, vc->state.y, vc->state.x);
-+#else
- 		vc->vc_sw->con_putc(vc, i, vc->state.y, vc->state.x);
-+#endif
-+	}
- }
- 
- static void hide_softcursor(struct vc_data *vc)
- {
- 	if (softcursor_original != -1) {
- 		scr_writew(softcursor_original, (u16 *)vc->vc_pos);
--		if (con_should_update(vc))
-+		if (con_should_update(vc)) {
-+#ifdef CONFIG_FONT_CJK
-+			unsigned int offset = vc->vc_pos - vc->vc_origin;
-+			u16 glyph[2] = {
-+				softcursor_original,
-+				scr_readw(screenpos_utf8(vc, offset))
-+			};
-+
-+			vc->vc_sw->con_putcs(vc, glyph, 1, vc->state.y, vc->state.x);
-+#else
- 			vc->vc_sw->con_putc(vc, softcursor_original,
--					vc->state.y, vc->state.x);
-+						vc->state.y, vc->state.x);
-+#endif
-+		}
- 		softcursor_original = -1;
- 	}
- }
-@@ -1141,10 +1233,15 @@ int vc_allocate(unsigned int currcons)	/
- 
- 	err = -EINVAL;
- 	if (vc->vc_cols > VC_MAXCOL || vc->vc_rows > VC_MAXROW ||
--	    vc->vc_screenbuf_size > KMALLOC_MAX_SIZE || !vc->vc_screenbuf_size)
-+	    vc->vc_screenbuf_size >
-+		KMALLOC_MAX_SIZE / (IS_ENABLED(CONFIG_FONT_CJK) ? 2 : 1) ||
-+	    !vc->vc_screenbuf_size)
- 		goto err_free;
- 	err = -ENOMEM;
--	vc->vc_screenbuf = kzalloc(vc->vc_screenbuf_size, GFP_KERNEL);
-+	if (IS_ENABLED(CONFIG_FONT_CJK))
-+		vc->vc_screenbuf = kzalloc(vc->vc_screenbuf_size * 2, GFP_KERNEL);
-+	else
-+		vc->vc_screenbuf = kzalloc(vc->vc_screenbuf_size, GFP_KERNEL);
- 	if (!vc->vc_screenbuf)
- 		goto err_free;
- 
-@@ -1196,8 +1293,10 @@ static int vc_do_resize(struct tty_struc
- 				unsigned int cols, unsigned int lines)
- {
- 	unsigned long old_origin, new_origin, new_scr_end, rlth, rrem, err = 0;
-+	unsigned long old_utf = 0, new_utf = 0;
- 	unsigned long end;
- 	unsigned int old_rows, old_row_size, first_copied_row;
-+	unsigned int old_screen_size;
- 	unsigned int new_cols, new_rows, new_row_size, new_screen_size;
- 	unsigned int user;
- 	unsigned short *oldscreen, *newscreen;
-@@ -1239,9 +1338,14 @@ static int vc_do_resize(struct tty_struc
- 		return resize_screen(vc, new_cols, new_rows, user);
- 	}
- 
--	if (new_screen_size > KMALLOC_MAX_SIZE || !new_screen_size)
-+	if (new_screen_size >
-+	    KMALLOC_MAX_SIZE / (IS_ENABLED(CONFIG_FONT_CJK) ? 2 : 1) ||
-+	    !new_screen_size)
- 		return -EINVAL;
--	newscreen = kzalloc(new_screen_size, GFP_USER);
-+	if (IS_ENABLED(CONFIG_FONT_CJK))
-+		newscreen = kzalloc(new_screen_size * 2, GFP_USER);
-+	else
-+		newscreen = kzalloc(new_screen_size, GFP_USER);
- 	if (!newscreen)
- 		return -ENOMEM;
- 
-@@ -1258,6 +1362,9 @@ static int vc_do_resize(struct tty_struc
- 
- 	old_rows = vc->vc_rows;
- 	old_row_size = vc->vc_size_row;
-+	oldscreen = vc->vc_screenbuf;
-+	if (IS_ENABLED(CONFIG_FONT_CJK))
-+		old_screen_size = old_row_size * old_rows;
- 
- 	err = resize_screen(vc, new_cols, new_rows, user);
- 	if (err) {
-@@ -1295,6 +1402,11 @@ static int vc_do_resize(struct tty_struc
- 	} else
- 		first_copied_row = 0;
- 	end = old_origin + old_row_size * min(old_rows, new_rows);
-+	if (IS_ENABLED(CONFIG_FONT_CJK)) {
-+		old_utf = (unsigned long)oldscreen + old_screen_size +
-+			  first_copied_row * old_row_size;
-+		new_utf = (unsigned long)newscreen + new_screen_size;
-+	}
- 
- 	vc_uniscr_copy_area(new_uniscr, new_cols, new_rows,
- 			    get_vc_uniscr(vc), rlth/2, first_copied_row,
-@@ -1306,6 +1418,12 @@ static int vc_do_resize(struct tty_struc
- 	while (old_origin < end) {
- 		scr_memcpyw((unsigned short *) new_origin,
- 			    (unsigned short *) old_origin, rlth);
-+		if (IS_ENABLED(CONFIG_FONT_CJK)) {
-+			scr_memcpyw((unsigned short *)new_utf,
-+				    (unsigned short *)old_utf, rlth);
-+			old_utf += old_row_size;
-+			new_utf += new_row_size;
-+		}
- 		if (rrem)
- 			scr_memsetw((void *)(new_origin + rlth),
- 				    vc->vc_video_erase_char, rrem);
-@@ -1315,7 +1433,6 @@ static int vc_do_resize(struct tty_struc
- 	if (new_scr_end > new_origin)
- 		scr_memsetw((void *)new_origin, vc->vc_video_erase_char,
- 			    new_scr_end - new_origin);
--	oldscreen = vc->vc_screenbuf;
- 	vc->vc_screenbuf = newscreen;
- 	vc->vc_screenbuf_size = new_screen_size;
- 	set_origin(vc);
-@@ -2591,10 +2708,438 @@ static int ucs_cmp(const void *key, cons
+@@ -2591,10 +2591,438 @@ static int ucs_cmp(const void *key, cons
  static int is_double_width(uint32_t ucs)
  {
  	static const struct interval double_width[] = {
@@ -772,148 +469,126 @@ diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
  	};
  	if (ucs < double_width[0].first ||
  	    ucs > double_width[ARRAY_SIZE(double_width) - 1].last)
-@@ -2807,7 +3352,10 @@ static int vc_con_write_normal(struct vc
- 	}
+@@ -2792,6 +3220,44 @@ static bool vc_is_control(struct vc_data
+ 	return false;
+ }
+ 
++#define UCS_ZWS		0x200b	/* Zero Width Space */
++
++#ifdef CONFIG_FONT_CJK
++/* Console lock held; zero means that this cell uses the ordinary font. */
++u32 vc_uniscr_get_cjk(const struct vc_data *vc, unsigned int row,
++		      unsigned int col, bool *continuation)
++{
++	struct uni_screen *uniscr = get_vc_uniscr(vc);
++	u32 uc;
++	u16 *p, mask = vc->vc_hi_font_mask | 0xff;
++	int glyph, charmask = vc->vc_hi_font_mask ? 0x1ff : 0xff;
++
++	*continuation = false;
++	if (!vc->vc_utf || !uniscr ||
++	    row >= vc->vc_rows || col >= vc->vc_cols)
++		return 0;
++	uc = uniscr->lines[row][col];
++	p = screenpos(vc, row * vc->vc_size_row + col * 2, false);
++	if ((vcs_scr_readw(vc, p) & mask) == 0xfe && uc == UCS_ZWS) {
++		*continuation = true;
++		if (!col || (vcs_scr_readw(vc, p - 1) & mask) != 0xff)
++			return UCS_ZWS;
++		uc = uniscr->lines[row][col - 1];
++	} else if ((vcs_scr_readw(vc, p) & mask) != 0xff) {
++		return 0;
++	}
++	if (uc <= 0xff || uc == UCS_ZWS)
++		return *continuation ? UCS_ZWS : 0;
++	glyph = conv_uni_to_pc((struct vc_data *)vc, uc);
++	if (glyph == -1 || glyph == -2 ||
++	    (glyph >= 0 && glyph <= charmask &&
++	     glyph < vc->vc_font.charcount))
++		return *continuation ? UCS_ZWS : 0;
++	return uc;
++}
++EXPORT_SYMBOL_GPL(vc_uniscr_get_cjk);
++#endif
++
+ static int vc_con_write_normal(struct vc_data *vc, int tc, int c,
+ 		struct vc_draw_region *draw)
+ {
+@@ -2800,6 +3266,7 @@ static int vc_con_write_normal(struct vc
+ 	u16 himask = vc->vc_hi_font_mask, charmask = himask ? 0x1ff : 0xff;
+ 	u8 width = 1;
+ 	bool inverse = false;
++	bool cjk = IS_ENABLED(CONFIG_FONT_CJK) && !vc_uniscr_check(vc);
+ 
+ 	if (vc->vc_utf && !vc->vc_disp_ctrl) {
+ 		if (is_double_width(c))
+@@ -2808,6 +3275,10 @@ static int vc_con_write_normal(struct vc
  
  	/* Now try to find out how to display it */
--	tc = conv_uni_to_pc(vc, tc);
-+	if (IS_ENABLED(CONFIG_FONT_CJK) && c > 0xff)
+ 	tc = conv_uni_to_pc(vc, tc);
++	cjk = cjk && c > 0xff && tc != -1 && tc != -2 &&
++		(tc < 0 || tc > charmask || tc >= (int)vc->vc_font.charcount);
++	if (cjk)
 +		tc = 0xff;
-+	else
-+		tc = conv_uni_to_pc(vc, tc);
  	if (tc & ~charmask) {
  		if (tc == -1 || tc == -2)
  			return -1; /* nothing to display */
-@@ -2841,8 +3389,15 @@ static int vc_con_write_normal(struct vc
- 			}
- 		}
- 	}
--
- 	next_c = c;
-+	if (IS_ENABLED(CONFIG_FONT_CJK)) {
-+		next_c = (c <= 0xffff) ? c : 0xfffd;
-+		if (width == 2 && !vc->vc_need_wrap &&
-+		    vc->state.x == vc->vc_cols - 1) {
-+			vc->vc_need_wrap = vc->vc_decawm;
-+			draw->to = vc->vc_pos + 2;
-+		}
-+	}
- 	while (1) {
- 		if (vc->vc_need_wrap || vc->vc_decim)
- 			con_flush(vc, draw);
-@@ -2852,7 +3407,7 @@ static int vc_con_write_normal(struct vc
+@@ -2849,6 +3320,14 @@ static int vc_con_write_normal(struct vc
+ 		if (vc->vc_need_wrap) {
+ 			cr(vc);
+ 			lf(vc);
++		} else if (width == 2 && vc->state.x == vc->vc_cols - 1) {
++			if (!vc->vc_decawm || vc->vc_cols < 2) {
++				width = 1;
++			} else {
++				con_flush(vc, draw);
++				cr(vc);
++				lf(vc);
++			}
  		}
  		if (vc->vc_decim)
  			insert_char(vc, 1);
--		vc_uniscr_putc(vc, next_c);
-+		vc_uniscr_putc(vc, next_c, c);
- 
- 		if (himask)
- 			tc = ((tc & 0x100) ? himask : 0) |
-@@ -2876,10 +3431,14 @@ static int vc_con_write_normal(struct vc
- 		if (!--width)
+@@ -2877,10 +3356,14 @@ static int vc_con_write_normal(struct vc
  			break;
  
--		/* A space is printed in the second column */
+ 		/* A space is printed in the second column */
 -		tc = conv_uni_to_pc(vc, ' ');
 -		if (tc < 0)
 -			tc = ' ';
-+		if (IS_ENABLED(CONFIG_FONT_CJK))
+-		next_c = ' ';
++		if (cjk) {
 +			tc = 0xfe;
-+		else {
-+			/* A space is printed in the second column */
++		} else {
 +			tc = conv_uni_to_pc(vc, ' ');
 +			if (tc < 0)
 +				tc = ' ';
 +		}
- 		next_c = ' ';
++		next_c = cjk ? UCS_ZWS : ' ';
  	}
  	notify_write(vc, c);
-@@ -2926,6 +3485,10 @@ static int do_con_write(struct tty_struc
- 	if (con_is_fg(vc))
- 		hide_cursor(vc);
  
-+	if (IS_ENABLED(CONFIG_FONT_CJK)) {
-+		vc->vc_utf = 1;
-+		vc->vc_disp_ctrl = 0;
-+	}
- 	param.vc = vc;
- 
- 	while (!tty->flow.stopped && count) {
-@@ -3130,7 +3693,7 @@ static void vt_console_print(struct cons
- 			if (c == 10 || c == 13)
- 				continue;
- 		}
--		vc_uniscr_putc(vc, c);
-+		vc_uniscr_putc(vc, c, c);
- 		scr_writew((vc->vc_attr << 8) + c, (unsigned short *)vc->vc_pos);
- 		notify_write(vc, c);
- 		cnt++;
-@@ -3532,7 +4095,12 @@ static int __init con_init(void)
- 		tty_port_init(&vc->port);
- 		visual_init(vc, currcons, true);
- 		/* Assuming vc->vc_{cols,rows,screenbuf_size} are sane here. */
--		vc->vc_screenbuf = kzalloc(vc->vc_screenbuf_size, GFP_NOWAIT);
-+		if (IS_ENABLED(CONFIG_FONT_CJK))
-+			vc->vc_screenbuf = kzalloc(vc->vc_screenbuf_size * 2,
-+						   GFP_NOWAIT);
-+		else
-+			vc->vc_screenbuf = kzalloc(vc->vc_screenbuf_size,
-+						   GFP_NOWAIT);
- 		vc_init(vc, vc->vc_rows, vc->vc_cols,
- 			currcons || !vc->vc_sw->con_save_screen);
- 	}
-@@ -4743,6 +5311,12 @@ u16 screen_glyph(const struct vc_data *v
- 	u16 w = scr_readw(screenpos(vc, offset, true));
- 	u16 c = w & 0xff;
- 
-+#ifdef CONFIG_FONT_CJK
-+	u16 c_utf = scr_readw(screenpos_utf8(vc, offset));
-+
-+	if ((c == 0xff || c == 0xfe) && c_utf)
-+		return c_utf;
-+#endif
- 	if (w & vc->vc_hi_font_mask)
- 		c |= 0x100;
- 	return c;
-@@ -4789,11 +5363,37 @@ u16 vcs_scr_readw(const struct vc_data *
+@@ -4789,6 +5272,21 @@ u16 vcs_scr_readw(const struct vc_data *
  
  void vcs_scr_writew(struct vc_data *vc, u16 val, u16 *org)
  {
-+#ifdef CONFIG_FONT_CJK
-+	unsigned long org_addr = (unsigned long)org;
-+	u16 old = vcs_scr_readw(vc, org);
-+	u16 *redraw = NULL;
++	unsigned long addr = (unsigned long)org;
++	u16 mask = vc->vc_hi_font_mask | 0xff;
++	struct uni_screen *uniscr = get_vc_uniscr(vc);
 +
-+	if (((old ^ val) & 0xff) &&
-+	    org_addr >= vc->vc_origin && org_addr < vc->vc_scr_end) {
-+		unsigned int offset = org_addr - vc->vc_origin;
-+		unsigned int column = (offset % vc->vc_size_row) / 2;
++	if (IS_ENABLED(CONFIG_FONT_CJK) && uniscr &&
++	    ((vcs_scr_readw(vc, org) ^ val) & mask) &&
++	    addr >= vc->vc_origin && addr < vc->vc_scr_end) {
++		unsigned int offset = addr - vc->vc_origin;
++		u16 glyph = (val & 0xff) | ((val & vc->vc_hi_font_mask) ? 0x100 : 0);
 +
-+		scr_writew(0, screenpos_utf8(vc, offset));
-+		if ((old & 0xff) == 0xff && column + 1 < vc->vc_cols &&
-+		    (vcs_scr_readw(vc, org + 1) & 0xff) == 0xfe) {
-+			scr_writew(0, screenpos_utf8(vc, offset + 2));
-+			redraw = org;
-+		} else if ((old & 0xff) == 0xfe && column > 0 &&
-+			   (vcs_scr_readw(vc, org - 1) & 0xff) == 0xff) {
-+			scr_writew(0, screenpos_utf8(vc, offset - 2));
-+			redraw = org - 1;
-+		}
++		uniscr->lines[offset / vc->vc_size_row]
++				[offset % vc->vc_size_row / 2] =
++			inverse_translate(vc, glyph, true);
 +	}
-+#endif
++
  	scr_writew(val, org);
  	if ((unsigned long)org == vc->vc_pos) {
  		softcursor_original = -1;
- 		add_softcursor(vc);
- 	}
-+#ifdef CONFIG_FONT_CJK
-+	if (redraw)
-+		update_region(vc, (unsigned long)redraw, 2);
-+#endif
- }
- 
- void vcs_scr_updated(struct vc_data *vc)
 diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitblit.c
 --- a/drivers/video/fbdev/core/bitblit.c
 +++ b/drivers/video/fbdev/core/bitblit.c
@@ -927,79 +602,108 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  #include <asm/types.h>
  #include "fbcon.h"
  
-@@ -43,6 +46,65 @@ static void update_attr(u8 *dst, u8 *src
+@@ -43,6 +46,88 @@ static void update_attr(u8 *dst, u8 *src
  	}
  }
  
 +#ifdef CONFIG_FONT_CJK
-+static u16 utf8_pos(struct vc_data *vc, const u16 *s)
++u8 *font_bits(struct vc_data *vc, u16 ch, u32 c_utf, bool continuation,
++	      u32 cellsize, struct fbcon_par *par)
 +{
-+	unsigned long p = (unsigned long) s;
++	const char *fontname = vc->vc_font.width == 8 && vc->vc_font.height == 16 ?
++		"CJK16x16" : vc->vc_font.width == 16 && vc->vc_font.height == 32 ?
++		"CJK32x32" : NULL;
 +
-+	if (p >= vc->vc_origin && p < vc->vc_scr_end)
-+		return scr_readw((u16 *)((u8 *)vc->vc_screenbuf +
-+			vc->vc_screenbuf_size + p - vc->vc_origin));
-+	else
-+		return scr_readw(s + 1);
-+}
++	if (c_utf > 0xffff)
++		c_utf = 0xfffd;
 +
-+u8 *font_bits(struct vc_data *vc, const u16 *s, u32 cellsize, u16 charmask,
-+	struct fbcon_par *par)
-+{
-+	u8 *src;
-+	u16 c_utf;
-+	u16 ch = scr_readw(s) & charmask;
-+	u32 cellsize_utf = (cellsize < 64) ? 16 : 64;
-+	size_t offset;
-+	void *fontdata;
-+	char *fontname = (cellsize < 64) ? "CJK16x16" : "CJK32x32";
-+	const struct font_desc *font = NULL;
++#ifdef CONFIG_FRAMEBUFFER_CONSOLE_ROTATION
++	if (par) {
++		static u8 blank[32 * 32 / 8];
++		const struct font_desc *font;
++		u8 *fontdata;
++		u32 cellsize_utf, size;
++		size_t offset;
 +
-+	fontdata = par ? par->fontbuffer : vc->vc_font.data;
-+	if (ch >= vc->vc_font.charcount)
-+		ch = 0;
-+	src = fontdata + ch * cellsize;
-+	if (ch != 0xff && ch != 0xfe)
-+		return src;
-+
-+	/* assume current font not support unicode */
-+	if (vc->vc_font.charcount < 65536) {
-+		if (par)
-+			fontdata = par->fontbuffer_utf;
-+		else {
-+			font = find_font(fontname);
-+			fontdata = (font && font->data) ? (void *) font->data : NULL;
++		if (!par->fontbuffer || par->fd_size < cellsize ||
++		    par->fontdata != vc->vc_font.data)
++			return blank;
++		if (!c_utf) {
++			if (ch >= vc->vc_font.charcount ||
++			    ((size_t)ch + 1) * cellsize > par->fd_size)
++				ch = 0;
++			return par->fontbuffer + ch * cellsize;
 +		}
-+	}
-+	if (fontdata) {
-+		c_utf = utf8_pos(vc, s);
-+		offset = (size_t)c_utf * cellsize_utf * 2;
-+		if (ch == 0xfe)
-+			offset += cellsize_utf;
-+		if (par && offset + cellsize_utf >
-+		    (fontdata == par->fontbuffer_utf ?
-+		     par->fd_size_utf : par->fd_size))
-+			return src;
-+		if (!par && !font &&
-+		    offset + cellsize_utf > vc->vc_font.charcount * cellsize)
-+			return src;
-+		src = fontdata + offset;
-+	}
 +
-+	return src;
++		font = fontname ? find_font(fontname) : NULL;
++		if (!font || !font->data)
++			return par->fontbuffer;
++		if (font->data == vc->vc_font.data) {
++			fontdata = par->fontbuffer;
++			size = par->fd_size;
++		} else {
++			if (!par->fontbuffer_utf || par->fontdata_utf != font->data)
++				return par->fontbuffer;
++			fontdata = par->fontbuffer_utf;
++			size = par->fd_size_utf;
++		}
++
++		cellsize_utf = par->cur_rotate % 2 ?
++			DIV_ROUND_UP(font->height, 8) * font->width :
++			DIV_ROUND_UP(font->width, 8) * font->height;
++		offset = (size_t)c_utf * 2 + continuation;
++		if (cellsize != cellsize_utf || offset >= font->charcount)
++			return par->fontbuffer;
++		offset *= cellsize_utf;
++		if (offset + cellsize > size)
++			return par->fontbuffer;
++		return fontdata + offset;
++	} else
++#endif
++	{
++		const struct font_desc *font;
++		u8 *fontdata;
++		u32 cellsize_utf;
++		size_t offset;
++
++		if (!c_utf) {
++			if (ch >= vc->vc_font.charcount)
++				ch = 0;
++			return vc->vc_font.data + ch * cellsize;
++		}
++
++		font = fontname ? find_font(fontname) : NULL;
++		if (!font || !font->data)
++			return vc->vc_font.data;
++		cellsize_utf = DIV_ROUND_UP(font->width, 8) * font->height;
++		offset = (size_t)c_utf * 2 + continuation;
++		if (cellsize != cellsize_utf || offset >= font->charcount)
++			return vc->vc_font.data;
++		fontdata = (u8 *)font->data;
++		offset *= cellsize_utf;
++		if (offset + cellsize > FNTSIZE(font->data))
++			return vc->vc_font.data;
++		return fontdata + offset;
++	}
 +}
 +#endif
 +
  static void bit_bmove(struct vc_data *vc, struct fb_info *info, int sy,
  		      int sx, int dy, int dx, int height, int width)
  {
-@@ -79,16 +141,21 @@ static inline void bit_putcs_aligned(str
+@@ -79,16 +164,31 @@ static inline void bit_putcs_aligned(str
  				     struct fb_image *image, u8 *buf, u8 *dst)
  {
  	u16 charmask = vc->vc_hi_font_mask ? 0x1ff : 0xff;
 -	unsigned int charcnt = vc->vc_font.charcount;
  	u32 idx = vc->vc_font.width >> 3;
  	u8 *src;
++#ifdef CONFIG_FONT_CJK
++	struct fbcon_par *par = info->fbcon_par;
++	u32 y = (image->dy / vc->vc_font.height + par->p->vrows -
++		 par->p->yscroll) % par->p->vrows;
++	u32 x = image->dx / vc->vc_font.width;
++#endif
  
  	while (cnt--) {
 -		u16 ch = scr_readw(s++) & charmask;
@@ -1008,7 +712,11 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
 -			ch = 0;
 -		src = vc->vc_font.data + (unsigned int)ch * cellsize;
 +#ifdef CONFIG_FONT_CJK
-+		src = font_bits(vc, s++, cellsize, charmask, NULL);
++		bool continuation;
++		u32 c_utf = vc_uniscr_get_cjk(vc, y, x++, &continuation);
++
++		src = font_bits(vc, scr_readw(s++) & charmask, c_utf,
++				continuation, cellsize, NULL);
 +#else
 +		{
 +			u16 ch = scr_readw(s++) & charmask;
@@ -1021,7 +729,7 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  
  		if (attr) {
  			update_attr(buf, src, attr, vc);
-@@ -116,18 +183,23 @@ static inline void bit_putcs_unaligned(s
+@@ -116,18 +216,33 @@ static inline void bit_putcs_unaligned(s
  				       u8 *dst)
  {
  	u16 charmask = vc->vc_hi_font_mask ? 0x1ff : 0xff;
@@ -1030,6 +738,12 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  	u32 shift_high = 8;
  	u32 idx = vc->vc_font.width >> 3;
  	u8 *src;
++#ifdef CONFIG_FONT_CJK
++	struct fbcon_par *par = info->fbcon_par;
++	u32 y = (image->dy / vc->vc_font.height + par->p->vrows -
++		 par->p->yscroll) % par->p->vrows;
++	u32 x = image->dx / vc->vc_font.width;
++#endif
  
  	while (cnt--) {
 -		u16 ch = scr_readw(s++) & charmask;
@@ -1038,7 +752,11 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
 -			ch = 0;
 -		src = vc->vc_font.data + (unsigned int)ch * cellsize;
 +#ifdef CONFIG_FONT_CJK
-+		src = font_bits(vc, s++, cellsize, charmask, NULL);
++		bool continuation;
++		u32 c_utf = vc_uniscr_get_cjk(vc, y, x++, &continuation);
++
++		src = font_bits(vc, scr_readw(s++) & charmask, c_utf,
++				continuation, cellsize, NULL);
 +#else
 +		{
 +			u16 ch = scr_readw(s++) & charmask;
@@ -1051,13 +769,26 @@ diff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitbl
  
  		if (attr) {
  			update_attr(buf, src, attr, vc);
-@@ -276,12 +348,17 @@ static void bit_cursor(struct vc_data *v
+@@ -268,6 +383,10 @@ static void bit_cursor(struct vc_data *v
+ 	int attribute, use_sw = vc->vc_cursor_type & CUR_SW;
+ 	int err = 1;
+ 	char *src;
++#ifdef CONFIG_FONT_CJK
++	bool continuation;
++	u32 c_utf;
++#endif
+ 
+ 	cursor.set = 0;
+ 
+@@ -276,12 +395,19 @@ static void bit_cursor(struct vc_data *v
  
  	c = scr_readw((u16 *) vc->vc_pos);
  	attribute = get_attribute(info, c);
 +#ifdef CONFIG_FONT_CJK
-+	src = font_bits(vc, (u16 *)vc->vc_pos,
-+			(w * vc->vc_font.height), charmask, NULL);
++	c_utf = vc_uniscr_get_cjk(vc, vc->state.y, vc->state.x, &continuation);
++
++	src = font_bits(vc, c & charmask, c_utf, continuation,
++			w * vc->vc_font.height, NULL);
 +#else
  	c &= charmask;
  
@@ -1105,18 +836,7 @@ diff --git a/drivers/video/fbdev/core/fbcon.c b/drivers/video/fbdev/core/fbcon.c
  		vc->vc_hi_font_mask = 0;
  	} else {
  		vc->vc_hi_font_mask = 0x100;
-@@ -1610,6 +1617,10 @@ static void fbcon_redraw_blit(struct vc_
- 			}
- 
- 			scr_writew(c, d);
-+			if (IS_ENABLED(CONFIG_FONT_CJK))
-+				scr_writew(scr_readw(s +
-+					   (vc->vc_screenbuf_size >> 1)),
-+					   d + (vc->vc_screenbuf_size >> 1));
- 			console_conditional_schedule();
- 			s++;
- 			d++;
-@@ -1631,6 +1642,7 @@ static void fbcon_redraw_blit(struct vc_
+@@ -1631,6 +1638,7 @@ static void fbcon_redraw_blit(struct vc_
  static void fbcon_redraw(struct vc_data *vc, struct fbcon_display *p,
  			 int line, int count, int offset)
  {
@@ -1124,31 +844,19 @@ diff --git a/drivers/video/fbdev/core/fbcon.c b/drivers/video/fbdev/core/fbcon.c
  	unsigned short *d = (unsigned short *)
  	    (vc->vc_origin + vc->vc_size_row * line);
  	unsigned short *s = d + offset;
-@@ -1653,7 +1665,11 @@ static void fbcon_redraw(struct vc_data
+@@ -1653,7 +1661,10 @@ static void fbcon_redraw(struct vc_data
  					start = s;
  				}
  			}
 -			if (c == scr_readw(d)) {
 +			if ((!IS_ENABLED(CONFIG_FONT_CJK) ||
-+			     !(((scr_readw(s) & charmask) == 0xff ||
-+				(scr_readw(s) & charmask) == 0xfe) &&
-+			       scr_readw(s + (vc->vc_screenbuf_size >> 1)))) &&
++			     ((c & charmask) != 0xff &&
++			      (c & charmask) != 0xfe)) &&
 +			    c == scr_readw(d)) {
  				if (s > start) {
  					fbcon_putcs(vc, start, s - start,
  						     line, x);
-@@ -1665,6 +1681,10 @@ static void fbcon_redraw(struct vc_data
- 				}
- 			}
- 			scr_writew(c, d);
-+			if (IS_ENABLED(CONFIG_FONT_CJK))
-+				scr_writew(scr_readw(s +
-+					   (vc->vc_screenbuf_size >> 1)),
-+					   d + (vc->vc_screenbuf_size >> 1));
- 			console_conditional_schedule();
- 			s++;
- 			d++;
-@@ -2150,7 +2170,8 @@ static bool fbcon_switch(struct vc_data
+@@ -2150,7 +2161,8 @@ static bool fbcon_switch(struct vc_data
  	vc->vc_can_do_color = (fb_get_color_depth(&info->var, &info->fix)!=1);
  	vc->vc_complement_mask = vc->vc_can_do_color ? 0x7700 : 0x0800;
  
@@ -1161,12 +869,21 @@ diff --git a/drivers/video/fbdev/core/fbcon.c b/drivers/video/fbdev/core/fbcon.c
 diff --git a/drivers/video/fbdev/core/fbcon.h b/drivers/video/fbdev/core/fbcon.h
 --- a/drivers/video/fbdev/core/fbcon.h
 +++ b/drivers/video/fbdev/core/fbcon.h
-@@ -81,10 +81,16 @@ struct fbcon_par {
+@@ -14,6 +14,7 @@
+ #include <linux/types.h>
+ #include <linux/vt_buffer.h>
+ #include <linux/vt_kern.h>
++#include <linux/selection.h>
+ #include <linux/workqueue.h>
+ 
+ #include <asm/io.h>
+@@ -81,10 +82,17 @@ struct fbcon_par {
  	int    cur_rotate;
  	char  *cursor_data;
  	u8    *fontbuffer;
 +#ifdef CONFIG_FONT_CJK
 +	u8    *fontbuffer_utf;
++	const u8 *fontdata_utf;
 +#endif
  	u8    *fontdata;
  	u8    *cursor_src;
@@ -1178,13 +895,13 @@ diff --git a/drivers/video/fbdev/core/fbcon.h b/drivers/video/fbdev/core/fbcon.h
  };
      /*
       *  Attribute Decoding
-@@ -187,6 +193,10 @@ extern void fbcon_set_tileops(struct vc_
+@@ -187,6 +195,10 @@ extern void fbcon_set_tileops(struct vc_
  #endif
  extern void fbcon_set_bitops(struct fbcon_par *par);
  extern int  soft_cursor(struct fb_info *info, struct fb_cursor *cursor);
 +#ifdef CONFIG_FONT_CJK
-+extern u8 *font_bits(struct vc_data *vc, const u16 *s, u32 cellsize,
-+		     u16 charmask, struct fbcon_par *par);
++extern u8 *font_bits(struct vc_data *vc, u16 ch, u32 c_utf, bool continuation,
++		     u32 cellsize, struct fbcon_par *par);
 +#endif
  
  #define FBCON_ATTRIBUTE_UNDERLINE 1
@@ -1192,13 +909,26 @@ diff --git a/drivers/video/fbdev/core/fbcon.h b/drivers/video/fbdev/core/fbcon.h
 diff --git a/drivers/video/fbdev/core/fbcon_ccw.c b/drivers/video/fbdev/core/fbcon_ccw.c
 --- a/drivers/video/fbdev/core/fbcon_ccw.c
 +++ b/drivers/video/fbdev/core/fbcon_ccw.c
-@@ -105,7 +105,12 @@ static inline void ccw_putcs_aligned(str
+@@ -103,9 +103,25 @@ static inline void ccw_putcs_aligned(str
+ 	u16 charmask = vc->vc_hi_font_mask ? 0x1ff : 0xff;
+ 	u32 idx = (vc->vc_font.height + 7) >> 3;
  	u8 *src;
++#ifdef CONFIG_FONT_CJK
++	u32 y = image->dx / vc->vc_font.height;
++	u32 x = (GETVYRES(par->p, info) - image->dy) /
++		vc->vc_font.width - 1;
++
++	y = (y + par->p->vrows - par->p->yscroll) % par->p->vrows;
++#endif
  
  	while (cnt--) {
 -		src = par->fontbuffer + (scr_readw(s--) & charmask) * cellsize;
 +#ifdef CONFIG_FONT_CJK
-+		src = font_bits(vc, s--, cellsize, charmask, par);
++		bool continuation;
++		u32 c_utf = vc_uniscr_get_cjk(vc, y, x--, &continuation);
++
++		src = font_bits(vc, scr_readw(s--) & charmask, c_utf,
++				continuation, cellsize, par);
 +#else
 +		src = par->fontbuffer +
 +		      (scr_readw(s--) & charmask) * cellsize;
@@ -1206,14 +936,27 @@ diff --git a/drivers/video/fbdev/core/fbcon_ccw.c b/drivers/video/fbdev/core/fbc
  
  		if (attr) {
  			ccw_update_attr(buf, src, attr, vc);
-@@ -237,7 +242,13 @@ static void ccw_cursor(struct vc_data *v
+@@ -229,6 +245,10 @@ static void ccw_cursor(struct vc_data *v
+ 	int err = 1, dx, dy;
+ 	char *src;
+ 	u32 vyres = GETVYRES(par->p, info);
++#ifdef CONFIG_FONT_CJK
++	bool continuation;
++	u32 c_utf;
++#endif
+ 
+ 	if (!par->fontbuffer)
+ 		return;
+@@ -237,7 +257,15 @@ static void ccw_cursor(struct vc_data *v
  
   	c = scr_readw((u16 *) vc->vc_pos);
  	attribute = get_attribute(info, c);
 -	src = par->fontbuffer + ((c & charmask) * (w * vc->vc_font.width));
 +#ifdef CONFIG_FONT_CJK
-+	src = font_bits(vc, (u16 *)vc->vc_pos,
-+			(w * vc->vc_font.width), charmask, par);
++	c_utf = vc_uniscr_get_cjk(vc, vc->state.y, vc->state.x, &continuation);
++
++	src = font_bits(vc, c & charmask, c_utf, continuation,
++			w * vc->vc_font.width, par);
 +#else
 +	src = par->fontbuffer +
 +	       ((c & charmask) * (w * vc->vc_font.width));
@@ -1224,13 +967,26 @@ diff --git a/drivers/video/fbdev/core/fbcon_ccw.c b/drivers/video/fbdev/core/fbc
 diff --git a/drivers/video/fbdev/core/fbcon_cw.c b/drivers/video/fbdev/core/fbcon_cw.c
 --- a/drivers/video/fbdev/core/fbcon_cw.c
 +++ b/drivers/video/fbdev/core/fbcon_cw.c
-@@ -90,7 +90,12 @@ static inline void cw_putcs_aligned(stru
+@@ -88,9 +88,25 @@ static inline void cw_putcs_aligned(stru
+ 	u16 charmask = vc->vc_hi_font_mask ? 0x1ff : 0xff;
+ 	u32 idx = (vc->vc_font.height + 7) >> 3;
  	u8 *src;
++#ifdef CONFIG_FONT_CJK
++	u32 y = (GETVXRES(par->p, info) - image->dx) /
++		vc->vc_font.height - 1;
++	u32 x = image->dy / vc->vc_font.width;
++
++	y = (y + par->p->vrows - par->p->yscroll) % par->p->vrows;
++#endif
  
  	while (cnt--) {
 -		src = par->fontbuffer + (scr_readw(s++) & charmask) * cellsize;
 +#ifdef CONFIG_FONT_CJK
-+		src = font_bits(vc, s++, cellsize, charmask, par);
++		bool continuation;
++		u32 c_utf = vc_uniscr_get_cjk(vc, y, x++, &continuation);
++
++		src = font_bits(vc, scr_readw(s++) & charmask, c_utf,
++				continuation, cellsize, par);
 +#else
 +		src = par->fontbuffer +
 +		      (scr_readw(s++) & charmask) * cellsize;
@@ -1238,14 +994,27 @@ diff --git a/drivers/video/fbdev/core/fbcon_cw.c b/drivers/video/fbdev/core/fbco
  
  		if (attr) {
  			cw_update_attr(buf, src, attr, vc);
-@@ -220,7 +225,13 @@ static void cw_cursor(struct vc_data *vc
+@@ -212,6 +228,10 @@ static void cw_cursor(struct vc_data *vc
+ 	int err = 1, dx, dy;
+ 	char *src;
+ 	u32 vxres = GETVXRES(par->p, info);
++#ifdef CONFIG_FONT_CJK
++	bool continuation;
++	u32 c_utf;
++#endif
+ 
+ 	if (!par->fontbuffer)
+ 		return;
+@@ -220,7 +240,15 @@ static void cw_cursor(struct vc_data *vc
  
   	c = scr_readw((u16 *) vc->vc_pos);
  	attribute = get_attribute(info, c);
 -	src = par->fontbuffer + ((c & charmask) * (w * vc->vc_font.width));
 +#ifdef CONFIG_FONT_CJK
-+	src = font_bits(vc, (u16 *)vc->vc_pos,
-+			(w * vc->vc_font.width), charmask, par);
++	c_utf = vc_uniscr_get_cjk(vc, vc->state.y, vc->state.x, &continuation);
++
++	src = font_bits(vc, c & charmask, c_utf, continuation,
++			w * vc->vc_font.width, par);
 +#else
 +	src = par->fontbuffer +
 +	       ((c & charmask) * (w * vc->vc_font.width));
@@ -1256,12 +1025,13 @@ diff --git a/drivers/video/fbdev/core/fbcon_cw.c b/drivers/video/fbdev/core/fbco
 diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/fbcon_rotate.c
 --- a/drivers/video/fbdev/core/fbcon_rotate.c
 +++ b/drivers/video/fbdev/core/fbcon_rotate.c
-@@ -14,10 +14,89 @@
+@@ -14,10 +14,92 @@
  #include <linux/fb.h>
  #include <linux/vt_kern.h>
  #include <linux/console.h>
 +#ifdef CONFIG_FONT_CJK
 +#include <linux/font.h>
++#include <linux/overflow.h>
 +#endif
  #include <asm/types.h>
  #include "fbcon.h"
@@ -1271,44 +1041,45 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
 +static int fbcon_rotate_font_utf(struct fb_info *info, struct vc_data *vc)
 +{
 +	struct fbcon_par *par = info->fbcon_par;
-+	int len, err = 0;
-+	int s_cellsize, d_cellsize, i;
++	const char *fontname = vc->vc_font.width == 8 && vc->vc_font.height == 16 ?
++		"CJK16x16" : vc->vc_font.width == 16 && vc->vc_font.height == 32 ?
++		"CJK32x32" : NULL;
++	const struct font_desc *font = fontname ? find_font(fontname) : NULL;
++	unsigned int len, s_cellsize, d_cellsize, i;
++	u32 size;
 +	const u8 *src;
 +	u8 *dst;
++	int err = 0;
 +
-+	int cellsize = ((vc->vc_font.width + 7)/8) * vc->vc_font.height;
-+	char *fontname = (cellsize < 64) ? "CJK16x16" : "CJK32x32";
-+	const struct font_desc *font = find_font(fontname);
-+
-+	if (!font || !font->data) {
-+		err = -ENOENT;
++	par->fontdata_utf = NULL;
++	if (!font || !font->data || font->data == vc->vc_font.data)
 +		goto invalidate;
-+	}
 +
 +	src = font->data;
 +	len = font->charcount;
-+	s_cellsize = ((font->width + 7)/8) * font->height;
-+	d_cellsize = s_cellsize;
++	s_cellsize = DIV_ROUND_UP(font->width, 8) * font->height;
++	d_cellsize = par->rotate % 2 ?
++		DIV_ROUND_UP(font->height, 8) * font->width : s_cellsize;
++	if (check_mul_overflow(len, d_cellsize, &size)) {
++		err = -EOVERFLOW;
++		goto invalidate;
++	}
 +
-+	if (par->fd_size_utf < d_cellsize * len) {
++	if (!par->fontbuffer_utf || par->fd_size_utf < size) {
 +		kvfree(par->fontbuffer_utf);
 +		par->fontbuffer_utf = NULL;
 +		par->fd_size_utf = 0;
-+
 +		dst = kvmalloc_array(len, d_cellsize, GFP_KERNEL);
-+
-+		if (dst == NULL) {
++		if (!dst) {
 +			err = -ENOMEM;
 +			goto invalidate;
 +		}
-+
-+		par->fd_size_utf = d_cellsize * len;
++		par->fd_size_utf = size;
 +		par->fontbuffer_utf = dst;
 +	}
 +
 +	dst = par->fontbuffer_utf;
-+	memset(dst, 0, par->fd_size_utf);
-+
++	memset(dst, 0, size);
 +	switch (par->rotate) {
 +	case FB_ROTATE_UD:
 +		for (i = len; i--; ) {
@@ -1332,13 +1103,14 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
 +		}
 +		break;
 +	}
-+
-+	return err;
++	par->fontdata_utf = font->data;
++	return 0;
 +
 +invalidate:
 +	kvfree(par->fontbuffer_utf);
 +	par->fontbuffer_utf = NULL;
 +	par->fd_size_utf = 0;
++	par->fontdata_utf = NULL;
 +	return err;
 +}
 +#endif
@@ -1346,7 +1118,7 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
  static int fbcon_rotate_font(struct fb_info *info, struct vc_data *vc)
  {
  	struct fbcon_par *par = info->fbcon_par;
-@@ -46,11 +125,19 @@ static int fbcon_rotate_font(struct fb_i
+@@ -46,11 +128,19 @@ static int fbcon_rotate_font(struct fb_i
  		info->fbops->fb_sync(info);
  
  	if (par->fd_size < d_cellsize * len) {
@@ -1366,28 +1138,46 @@ diff --git a/drivers/video/fbdev/core/fbcon_rotate.c b/drivers/video/fbdev/core/
  
  		if (dst == NULL) {
  			err = -ENOMEM;
-@@ -92,6 +179,11 @@ static int fbcon_rotate_font(struct fb_i
+@@ -92,7 +182,15 @@ static int fbcon_rotate_font(struct fb_i
  		break;
  	}
  
 +#ifdef CONFIG_FONT_CJK
-+	if (par->p->userfont)
-+		err = fbcon_rotate_font_utf(info, vc);
++	err = fbcon_rotate_font_utf(info, vc);
 +#endif
 +
  finished:
++#ifdef CONFIG_FONT_CJK
++	if (err)
++		par->fontdata = NULL;
++#endif
  	return err;
  }
+ 
 diff --git a/drivers/video/fbdev/core/fbcon_ud.c b/drivers/video/fbdev/core/fbcon_ud.c
 --- a/drivers/video/fbdev/core/fbcon_ud.c
 +++ b/drivers/video/fbdev/core/fbcon_ud.c
-@@ -92,7 +92,12 @@ static inline void ud_putcs_aligned(stru
+@@ -90,9 +90,26 @@ static inline void ud_putcs_aligned(stru
+ 	u16 charmask = vc->vc_hi_font_mask ? 0x1ff : 0xff;
+ 	u32 idx = vc->vc_font.width >> 3;
  	u8 *src;
++#ifdef CONFIG_FONT_CJK
++	u32 y = (GETVYRES(par->p, info) - image->dy) /
++		vc->vc_font.height - 1;
++	u32 x = (GETVXRES(par->p, info) - image->dx) /
++		vc->vc_font.width - 1;
++
++	y = (y + par->p->vrows - par->p->yscroll) % par->p->vrows;
++#endif
  
  	while (cnt--) {
 -		src = par->fontbuffer + (scr_readw(s--) & charmask) * cellsize;
 +#ifdef CONFIG_FONT_CJK
-+		src = font_bits(vc, s--, cellsize, charmask, par);
++		bool continuation;
++		u32 c_utf = vc_uniscr_get_cjk(vc, y, x--, &continuation);
++
++		src = font_bits(vc, scr_readw(s--) & charmask, c_utf,
++				continuation, cellsize, par);
 +#else
 +		src = par->fontbuffer +
 +		      (scr_readw(s--) & charmask) * cellsize;
@@ -1395,13 +1185,27 @@ diff --git a/drivers/video/fbdev/core/fbcon_ud.c b/drivers/video/fbdev/core/fbco
  
  		if (attr) {
  			ud_update_attr(buf, src, attr, vc);
-@@ -127,7 +132,12 @@ static inline void ud_putcs_unaligned(st
+@@ -125,9 +142,26 @@ static inline void ud_putcs_unaligned(st
+ 	u32 shift_high = 8;
+ 	u32 idx = vc->vc_font.width >> 3;
  	u8 *src;
++#ifdef CONFIG_FONT_CJK
++	u32 y = (GETVYRES(par->p, info) - image->dy) /
++		vc->vc_font.height - 1;
++	u32 x = (GETVXRES(par->p, info) - image->dx) /
++		vc->vc_font.width - 1;
++
++	y = (y + par->p->vrows - par->p->yscroll) % par->p->vrows;
++#endif
  
  	while (cnt--) {
 -		src = par->fontbuffer + (scr_readw(s--) & charmask) * cellsize;
 +#ifdef CONFIG_FONT_CJK
-+		src = font_bits(vc, s--, cellsize, charmask, par);
++		bool continuation;
++		u32 c_utf = vc_uniscr_get_cjk(vc, y, x--, &continuation);
++
++		src = font_bits(vc, scr_readw(s--) & charmask, c_utf,
++				continuation, cellsize, par);
 +#else
 +		src = par->fontbuffer +
 +		      (scr_readw(s--) & charmask) * cellsize;
@@ -1409,14 +1213,27 @@ diff --git a/drivers/video/fbdev/core/fbcon_ud.c b/drivers/video/fbdev/core/fbco
  
  		if (attr) {
  			ud_update_attr(buf, src, attr, vc);
-@@ -268,7 +278,13 @@ static void ud_cursor(struct vc_data *vc
+@@ -260,6 +294,10 @@ static void ud_cursor(struct vc_data *vc
+ 	char *src;
+ 	u32 vyres = GETVYRES(par->p, info);
+ 	u32 vxres = GETVXRES(par->p, info);
++#ifdef CONFIG_FONT_CJK
++	bool continuation;
++	u32 c_utf;
++#endif
+ 
+ 	if (!par->fontbuffer)
+ 		return;
+@@ -268,7 +306,15 @@ static void ud_cursor(struct vc_data *vc
  
   	c = scr_readw((u16 *) vc->vc_pos);
  	attribute = get_attribute(info, c);
 -	src = par->fontbuffer + ((c & charmask) * (w * vc->vc_font.height));
 +#ifdef CONFIG_FONT_CJK
-+	src = font_bits(vc, (u16 *)vc->vc_pos,
-+			(w * vc->vc_font.height), charmask, par);
++	c_utf = vc_uniscr_get_cjk(vc, vc->state.y, vc->state.x, &continuation);
++
++	src = font_bits(vc, c & charmask, c_utf, continuation,
++			w * vc->vc_font.height, par);
 +#else
 +	src = par->fontbuffer +
 +	       ((c & charmask) * (w * vc->vc_font.height));
@@ -1452,7 +1269,7 @@ diff --git a/include/linux/font.h b/include/linux/font.h
 diff --git a/lib/fonts/Kconfig b/lib/fonts/Kconfig
 --- a/lib/fonts/Kconfig
 +++ b/lib/fonts/Kconfig
-@@ -125,6 +125,38 @@ config FONT_6x8
+@@ -125,6 +125,40 @@ config FONT_6x8
  	help
  	  This font is useful for small displays (OLED).
  
@@ -1464,12 +1281,14 @@ diff --git a/lib/fonts/Kconfig b/lib/fonts/Kconfig
 +	depends on FRAMEBUFFER_CONSOLE && VT_CONSOLE
 +	select FONT_CJK
 +	select CONSOLE_TRANSLATIONS
-+	default y if !SPARC
 +	help
 +	  A 16x16 console font covering the Unicode Basic Multilingual Plane,
 +	  so the framebuffer console can display Chinese, Japanese and Korean
 +	  text. Each glyph occupies two 8x16 cells, and the font data adds
 +	  about 2 MiB to the kernel image.
++	  Unicode text uses four bytes per screen cell plus row pointers.
++	  Rotation needs 2 MiB per framebuffer console instance, in addition
++	  to the ordinary font.
 +
 +	  If unsure, say N.
 +
@@ -1483,15 +1302,15 @@ diff --git a/lib/fonts/Kconfig b/lib/fonts/Kconfig
 +	  A 32x32 console font covering the Unicode Basic Multilingual Plane,
 +	  for screens on which the 16x16 font is too small to read. Each glyph
 +	  occupies two 16x32 cells and the data adds about 8 MiB to the kernel
-+	  image. The glyphs come from a separate data patch; without it this
-+	  option compiles an empty font.
++	  image. Apply cjktty-add-cjk32x32-font-data.patch before enabling this
++	  option; the build fails if font_cjk_32x32.h is empty.
 +
 +	  If unsure, say N.
 +
  config FONT_AUTOSELECT
  	def_bool y
  	depends on !FONT_8x8
-@@ -139,6 +171,8 @@ config FONT_AUTOSELECT
+@@ -139,6 +173,8 @@ config FONT_AUTOSELECT
  	depends on !FONT_10x18
  	depends on !FONT_TER16x32
  	depends on !FONT_6x8
@@ -1503,12 +1322,18 @@ diff --git a/lib/fonts/Kconfig b/lib/fonts/Kconfig
 diff --git a/lib/fonts/Makefile b/lib/fonts/Makefile
 --- a/lib/fonts/Makefile
 +++ b/lib/fonts/Makefile
-@@ -16,6 +16,8 @@ font-objs-$(CONFIG_FONT_MINI_4x6)  += fo
+@@ -16,6 +16,14 @@ font-objs-$(CONFIG_FONT_MINI_4x6)  += fo
  font-objs-$(CONFIG_FONT_6x10)      += font_6x10.o
  font-objs-$(CONFIG_FONT_TER16x32)  += font_ter16x32.o
  font-objs-$(CONFIG_FONT_6x8)       += font_6x8.o
 +font-objs-$(CONFIG_FONT_CJK_16x16) += font_cjk_16x16.o
 +font-objs-$(CONFIG_FONT_CJK_32x32) += font_cjk_32x32.o
++
++ifeq ($(CONFIG_FONT_CJK_32x32),y)
++ifeq ($(shell test -s $(srctree)/lib/fonts/font_cjk_32x32.h && echo y),)
++$(error CONFIG_FONT_CJK_32x32 requires cjktty-add-cjk32x32-font-data.patch)
++endif
++endif
  
  font-objs += $(font-objs-y)
  
@@ -1590,3 +1415,24 @@ diff --git a/lib/fonts/fonts.c b/lib/fonts/fonts.c
  };
  
  #define num_fonts ARRAY_SIZE(fonts)
+diff --git a/include/linux/selection.h b/include/linux/selection.h
+--- a/include/linux/selection.h
++++ b/include/linux/selection.h
+@@ -48,6 +48,17 @@ extern void vcs_scr_writew(struct vc_dat
+ extern void vcs_scr_updated(struct vc_data *vc);
+ 
+ extern int vc_uniscr_check(struct vc_data *vc);
++#ifdef CONFIG_FONT_CJK
++u32 vc_uniscr_get_cjk(const struct vc_data *vc, unsigned int row,
++		      unsigned int col, bool *continuation);
++#else
++static inline u32 vc_uniscr_get_cjk(const struct vc_data *vc, unsigned int row,
++				   unsigned int col, bool *continuation)
++{
++	*continuation = false;
++	return 0;
++}
++#endif
+ extern void vc_uniscr_copy_line(const struct vc_data *vc, void *dest,
+ 				bool viewed,
+ 				unsigned int row, unsigned int col,
