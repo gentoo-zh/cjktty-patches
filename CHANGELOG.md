@@ -1,5 +1,11 @@
 # Changes
 
+## 2026.9.15 / 5.10.270, 5.15.221, 6.1.188, 6.6.157, 6.12.110, 6.18.52, 7.2.6, 7.3-rc2
+
+- Record the current point releases against the patches they already use. Only 6.1.188
+  changed a file the patch touches: `unsigned char` became `u8` on two `vt.c` write
+  helpers, outside every cjktty hunk, so `cjktty-6.1.184.patch` still applies.
+
 ## 2026.9.9 / 5.15.220, 6.1.187, 6.6.156, 6.12.109, 6.18.50, 7.2.4, 7.3-rc2
 
 - Take the codepoint from `vc_uni_lines` instead of a private plane reached by pointer
