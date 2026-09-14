@@ -1068,5 +1068,33 @@
       "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
       "v5.x/cjktty-code-5.10.265.patch": "1f240c94624f2449262687912e0605fa5e247cf4098a338d78d5d9f71b1995ec"
     }
+  },
+  {
+    "kernel": "7.3-rc3",
+    "stage": "stage-1",
+    "date": "2026-09-15",
+    "digests": {
+      "v7.x/cjktty-7.3-rc1.patch": "64c9f9aeb05d1965c07687df6d5d36b0c6c14d84ffdd7e668032c304dfe76d73"
+    }
+  },
+  {
+    "kernel": "7.3-rc3",
+    "stage": "stage-2",
+    "date": "2026-09-15",
+    "digests": {
+      "v7.x/cjktty-7.3-rc1.patch": "64c9f9aeb05d1965c07687df6d5d36b0c6c14d84ffdd7e668032c304dfe76d73"
+    }
+  },
+  {
+    "kernel": "7.3-rc3",
+    "form": "split",
+    "stage": "stage-1",
+    "date": "2026-09-15",
+    "font_patch": "cjktty-font-unifont-15.1.04.patch",
+    "code_patch": "v7.x/cjktty-code-7.3-rc1.patch",
+    "digests": {
+      "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
+      "v7.x/cjktty-code-7.3-rc1.patch": "1a4999bb5776f4a704f4fa65dd7aef8404614a91c666af3296d21e8caf041bef"
+    }
   }
 ]

@@ -2,7 +2,7 @@
 
 | Kernel.org series | Version tested | Combined patch | Split code patch (with `cjktty-font-unifont-15.1.04.patch`) | Stage 1 (apply, build, render) | Stage 2 (full system) | Notes |
 |---|---|---|---|---|---|---|
-| 7.3 (mainline) | 7.3-rc2 | `v7.x/cjktty-7.3-rc1.patch` | `v7.x/cjktty-code-7.3-rc1.patch` | Combined ✓<br>Split ✓ | Combined ✓ |  |
+| 7.3 (mainline) | 7.3-rc3 | `v7.x/cjktty-7.3-rc1.patch` | `v7.x/cjktty-code-7.3-rc1.patch` | Combined ✓<br>Split ✓ | Combined ✓ |  |
 | 7.2 (stable) | 7.2.6 | `v7.x/cjktty-7.2.patch` | `v7.x/cjktty-code-7.2.patch` | Combined ✓<br>Split ✓ | Combined ✓ |  |
 | 6.18 (longterm) | 6.18.52 | `v6.x/cjktty-6.18.45.patch` | `v6.x/cjktty-code-6.18.45.patch` | Combined ✓<br>Split ✓ | Combined ✓ | GRUB, installkernel and dracut initramfs on 6.18.44 |
 | 6.12 (longterm) | 6.12.110 | `v6.x/cjktty-6.12.104.patch` | `v6.x/cjktty-code-6.12.104.patch` | Combined ✓<br>Split ✓ | Combined ✓ | KASAN, kmemleak and lockdep clean on 6.12.102 |
