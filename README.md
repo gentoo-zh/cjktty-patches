@@ -19,7 +19,7 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
-### 2026.9.15 / 5.10.270, 5.15.221, 6.1.188, 6.6.157, 6.12.110, 6.18.52, 7.2.6, 7.3-rc2
+### 2026.9.15 / 5.10.270, 5.15.221, 6.1.188, 6.6.157, 6.12.110, 6.18.52, 7.2.6, 7.3-rc3
 
 - Record the current point releases against the patches they already use. Only 6.1.188
   changed a file the patch touches: `unsigned char` became `u8` on two `vt.c` write
