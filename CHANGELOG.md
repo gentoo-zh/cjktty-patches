@@ -1,5 +1,10 @@
 # Changes
 
+## 2026.9.26 / 5.10.270, 5.15.221, 6.1.188, 6.6.157, 6.12.111, 6.18.54, 7.2.8, 7.3-rc4
+
+- Record 6.18.54 and 7.2.8 against the patches they already use. Neither changed a
+  file the patch touches, so `cjktty-6.18.45.patch` and `cjktty-7.2.patch` still apply.
+
 ## 2026.9.22 / 5.10.270, 5.15.221, 6.1.188, 6.6.157, 6.12.111, 6.18.53, 7.2.7, 7.3-rc4
 
 - Record 6.12.111, 6.18.53, 7.2.7 and 7.3-rc4 against the patches they already use.
