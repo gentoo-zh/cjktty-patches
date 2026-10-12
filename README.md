@@ -19,6 +19,11 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
+### 2026.10.12 / 6.18.56, 7.2.10, 7.3-rc7
+
+- Record 6.18.56, 7.2.10 and 7.3-rc7 against the patches they already use.
+  Each changed `drivers/tty/vt/vt.c` and `selection.c` only outside the patched hunks.
+
 ### 2026.10.3 / 5.10.271, 5.15.222, 6.1.189, 6.6.158, 6.12.112, 6.18.55, 7.2.9, 7.3-rc5
 
 - Record the current point releases and 7.3-rc5 against the patches they already use.
