@@ -11,7 +11,14 @@ import runpy
 import sys
 from typing import Any
 
-from patch_selection import VersionError, select_patch, series_of, version_key
+from patch_selection import (
+    SelectionError,
+    VersionError,
+    select_patches,
+    series_of,
+    split_only,
+    version_key,
+)
 from support_data import (
     SplitForm,
     Verification,
@@ -170,19 +177,29 @@ def generate(
             raise GeneratorError(
                 f"no verification record for {release['moniker']} {release['version']}"
             )
-        patch = select_patch(repo, kernel)
-        if patch is None:
+        patches = select_patches(repo, kernel)
+        if patches is None:
             raise GeneratorError(f"no patch serves verified kernel {kernel}")
         try:
-            relative_patch = patch.relative_to(repo).as_posix()
+            relative_patches = tuple(patch.relative_to(repo).as_posix() for patch in patches)
         except ValueError as error:
-            raise GeneratorError(f"selected patch is outside {repo}: {patch}") from error
+            raise GeneratorError(f"selected patch is outside {repo}: {patches}") from error
         form = active_forms.get(kernel)
+        if split_only(kernel) and (
+            form is None or (form.font_patch, form.code_patch) != relative_patches
+        ):
+            # The split column comes from the records, so a split-only row must show
+            # the very patches that selection hands to a downstream build.
+            raise GeneratorError(
+                f"split-only {kernel} is served by {list(relative_patches)}, "
+                "which no split verification record names"
+            )
+        combined_patch = "" if split_only(kernel) else f"`{relative_patches[0]}`"
         code_patch = f"`{form.code_patch}`" if form is not None else ""
         for checked_kernel in records_by_series[series].values():
             used_dates.update(record.verified for record in checked_kernel)
         lines.append(
-            f"| {series} ({release['moniker']}) | {kernel} | `{relative_patch}` | "
+            f"| {series} ({release['moniker']}) | {kernel} | {combined_patch} | "
             f"{code_patch} | {stage_mark(kernel_records, 'stage-1')} | "
             f"{stage_mark(kernel_records, 'stage-2')} | "
             f"{notes_for_series(records_by_series[series], kernel)} |"
@@ -248,6 +265,8 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (FeedError, GeneratorError, OSError, VerificationError, VersionError) as error:
+    except (
+        FeedError, GeneratorError, OSError, SelectionError, VerificationError, VersionError
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(2)

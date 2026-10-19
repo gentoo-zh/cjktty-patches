@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check current kernel.org releases against the selected patch in each series."""
+"""Check current kernel.org releases against the selected patches in each series."""
 
 from __future__ import annotations
 
@@ -16,8 +16,9 @@ import urllib.request
 from urllib.parse import urlparse
 
 from patch_selection import (
+    SelectionError,
     VersionError,
-    select_patch,
+    select_patches,
     series_of as selected_series_of,
     version_key,
 )
@@ -152,7 +153,10 @@ def download_tarball(source: str, tarball_dir: Path) -> Path:
 
 
 def apply_status(
-    release: dict[str, Any], patch_path: Path, tarball_dir: Path, scratch_dir: Path
+    release: dict[str, Any],
+    patch_paths: tuple[Path, ...],
+    tarball_dir: Path,
+    scratch_dir: Path,
 ) -> tuple[str, str]:
     tarball = download_tarball(release["source"], tarball_dir)
     work = Path(tempfile.mkdtemp(prefix="release-drift.", dir=scratch_dir))
@@ -169,31 +173,39 @@ def apply_status(
             detail = extracted.stdout.strip()[-1000:]
             raise CheckError(f"cannot extract {tarball}: {detail}")
 
-        with patch_path.open("rb") as patch_input:
-            applied = subprocess.run(
-                [
-                    "patch",
-                    "-d",
-                    str(tree),
-                    "-p1",
-                    "--fuzz=0",
-                    "--dry-run",
-                    "--silent",
-                    "--batch",
-                    "--forward",
-                ],
-                stdin=patch_input,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            )
-        if applied.returncode == 0:
-            return "applies", ""
-        return "drifted", applied.stdout.strip()[-1000:]
+        for index, patch_path in enumerate(patch_paths, 1):
+            # Downstream applies the split pair in sequence, so each patch is checked
+            # against the tree the patches before it produced, not the pristine one.
+            dry_run = ["--dry-run"] if index == len(patch_paths) else []
+            with patch_path.open("rb") as patch_input:
+                applied = subprocess.run(
+                    [
+                        "patch",
+                        "-d",
+                        str(tree),
+                        "-p1",
+                        "--fuzz=0",
+                        *dry_run,
+                        "--silent",
+                        "--batch",
+                        "--forward",
+                    ],
+                    stdin=patch_input,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                )
+            if applied.returncode != 0:
+                return "drifted", f"{patch_path.name}: {applied.stdout.strip()[-1000:]}"
+        return "applies", ""
     except OSError as error:
         raise CheckError(str(error)) from error
     finally:
         shutil.rmtree(work)
+
+
+def patch_cell(result: dict[str, Any]) -> str:
+    return " + ".join(f"`{patch}`" for patch in result["patches"])
 
 
 def markdown_report(results: list[dict[str, Any]], source: str) -> str:
@@ -204,9 +216,9 @@ def markdown_report(results: list[dict[str, Any]], source: str) -> str:
         "",
         (
             "Watched series are the active, non-EOL kernel.org mainline, stable, and "
-            "longterm series for which this repository has a monolithic patch. The "
-            "patch selected for each release is checked; archived series "
-            "and split `cjktty-code-*` patches are not checked."
+            "longterm series that this repository serves. The patches selected for "
+            "each release are checked: the combined patch through 7.2, the font and "
+            "code patches from 7.3 on. Archived series are not checked."
         ),
         "",
         "| Series | Channel | Current release | Selected patch | Apply status |",
@@ -220,7 +232,7 @@ def markdown_report(results: list[dict[str, Any]], source: str) -> str:
         }[result["status"]]
         lines.append(
             f"| {result['series']} | {result['moniker']} | {result['release']} | "
-            f"`{result['patch']}` | {status} |"
+            f"{patch_cell(result)} | {status} |"
         )
 
     applies = sum(result["status"] == "applies" for result in results)
@@ -262,7 +274,7 @@ def issue_report(results: list[dict[str, Any]]) -> str:
         for result in drifted:
             lines.append(
                 f"| {result['series']} | {result['moniker']} | {result['release']} | "
-                f"`{result['patch']}` | failure |"
+                f"{patch_cell(result)} | failure |"
             )
     else:
         lines.append("No watched kernel series is currently drifted.")
@@ -273,7 +285,7 @@ def issue_report(results: list[dict[str, Any]]) -> str:
                 "The check uses the active, non-EOL mainline, stable, and longterm "
                 "entries in [kernel.org's released-versions feed]"
                 "(https://www.kernel.org/releases.json). It checks the newest "
-                "eligible monolithic patch carried for each matching series."
+                "eligible patch set carried for each matching series."
             ),
             "",
             (
@@ -302,30 +314,31 @@ def main() -> int:
 
     feed, feed_source = read_feed(args.releases_file, args.releases_url)
     releases = current_releases(feed)
-    patches: dict[str, Path] = {}
+    patches: dict[str, tuple[Path, ...]] = {}
     for series, release in releases.items():
         try:
-            patch = select_patch(repo, release["version"])
-        except VersionError as error:
+            selected = select_patches(repo, release["version"])
+        except (SelectionError, VersionError) as error:
             raise CheckError(str(error)) from error
-        if patch is not None:
-            patches[series] = patch
+        if selected is not None:
+            patches[series] = selected
     watched = sorted(patches, key=version_parts, reverse=True)
     if not watched:
-        raise CheckError("no active kernel.org series has a monolithic repository patch")
+        raise CheckError("no active kernel.org series has a repository patch")
 
     results: list[dict[str, Any]] = []
     for index, series in enumerate(watched, 1):
         release = releases[series]
-        patch_path = patches[series]
-        relative_patch = patch_path.relative_to(repo).as_posix()
+        patch_paths = patches[series]
+        relative_patches = [path.relative_to(repo).as_posix() for path in patch_paths]
+        relative_patch = " + ".join(relative_patches)
         print(
             f"[{index}/{len(watched)}] {series}: {relative_patch} -> {release['version']}",
             file=sys.stderr,
             flush=True,
         )
         try:
-            status, detail = apply_status(release, patch_path, tarball_dir, scratch_dir)
+            status, detail = apply_status(release, patch_paths, tarball_dir, scratch_dir)
         except CheckError as error:
             status, detail = "error", str(error)
         results.append(
@@ -335,6 +348,7 @@ def main() -> int:
                 "release": release["version"],
                 "source": release["source"],
                 "patch": relative_patch,
+                "patches": relative_patches,
                 "status": status,
                 "rc": release["moniker"] == "mainline" and "-rc" in release["version"],
                 "detail": detail,
@@ -351,7 +365,7 @@ def main() -> int:
         "feed": feed_source,
         "selection": (
             "active non-EOL mainline, stable, and longterm series with "
-            "monolithic patches"
+            "repository patches"
         ),
         "results": results,
         "summary": {

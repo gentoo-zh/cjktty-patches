@@ -11,7 +11,7 @@ import json
 import re
 from pathlib import Path, PurePosixPath
 
-from patch_selection import VersionError, version_key
+from patch_selection import VersionError, split_only, version_key
 
 
 STAGES = frozenset(
@@ -146,6 +146,17 @@ def read_verification(path: Path) -> dict[str, list[Verification]]:
         combined = {
             record.stage for record in kernel_records if record.form == "combined"
         }
+        if split_only(kernel):
+            # No combined patch is published for this kernel, so a combined record
+            # would describe bytes nobody can download.
+            if combined:
+                raise VerificationError(
+                    f"verification for split-only {kernel} has a combined record"
+                )
+            split = {record.stage for record in kernel_records if record.form == "split"}
+            if "stage-1" not in split:
+                raise VerificationError(f"verification for {kernel} lacks split stage-1")
+            continue
         # A kernel that passed only stage 1 is a real state, and the table says so
         # rather than claiming a stage that was never measured.
         if "stage-1" not in combined:

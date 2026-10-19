@@ -11,7 +11,14 @@ from pathlib import Path, PurePosixPath
 import re
 import sys
 
-from patch_selection import PATCH_RE, parse_version, select_patch, series_of, version_key
+from patch_selection import (
+    PATCH_RE,
+    SelectionError,
+    parse_version,
+    select_patches,
+    series_of,
+    version_key,
+)
 from support_data import (
     Verification,
     VerificationError,
@@ -115,14 +122,14 @@ def maintained_kernels(repo: Path, records: dict[str, list[Verification]]) -> li
     return sorted(newest.values(), key=version_key, reverse=True)
 
 
-def selected_path(repo: Path, kernel: str) -> str:
-    patch = select_patch(repo, kernel)
-    if patch is None:
-        raise MatrixError(f"no combined patch serves maintained kernel {kernel}")
+def served_patches(repo: Path, kernel: str) -> tuple[str, ...]:
+    patches = select_patches(repo, kernel)
+    if patches is None:
+        raise MatrixError(f"no patch serves maintained kernel {kernel}")
     try:
-        return patch.relative_to(repo).as_posix()
+        return tuple(patch.relative_to(repo).as_posix() for patch in patches)
     except ValueError as error:
-        raise MatrixError(f"selected patch is outside {repo}: {patch}") from error
+        raise MatrixError(f"selected patch is outside {repo}: {patches}") from error
 
 
 def combined_version(path: str) -> str | None:
@@ -155,9 +162,11 @@ def add_job(jobs: dict[tuple[object, ...], Job], job: Job) -> None:
         jobs[job.key] = job
 
 
-def combined_job(repo: Path, kernel: str, build: bool = True) -> Job:
-    patch = selected_path(repo, kernel)
-    return Job(kernel, "combined", (patch,), (patch,), False, build)
+def served_job(repo: Path, kernel: str) -> Job:
+    """The job for the patches a kernel is served by: combined, or font and code."""
+    patches = served_patches(repo, kernel)
+    kind = "combined" if len(patches) == 1 else "split"
+    return Job(kernel, kind, patches, patches, False, True)
 
 
 def split_job(kernel: str, font_patch: str, code_patch: str) -> Job:
@@ -181,14 +190,14 @@ def loadable_font_job(kernel: str) -> Job:
 
 
 def cjk32_job(repo: Path, kernel: str, data_patch: str) -> Job:
-    combined = selected_path(repo, kernel)
+    base = served_patches(repo, kernel)
     # test-patch.sh adds the data patch under --cjk32; passing it to the boot
     # job would apply the same patch twice.
     return Job(
         kernel,
         "cjk32",
-        (combined, data_patch),
-        (combined,),
+        (*base, data_patch),
+        base,
         True,
         True,
     )
@@ -253,7 +262,7 @@ def build_matrix(
     jobs: dict[tuple[object, ...], Job] = {}
     if all_kernels:
         for kernel in current:
-            add_job(jobs, combined_job(repo, kernel))
+            add_job(jobs, served_job(repo, kernel))
         return serialize(jobs)
 
     tool_change = False
@@ -266,7 +275,7 @@ def build_matrix(
 
         version = combined_version(path)
         if version is not None:
-            matched = [kernel for kernel in current if selected_path(repo, kernel) == path]
+            matched = [kernel for kernel in current if served_patches(repo, kernel) == (path,)]
             if matched:
                 for kernel in matched:
                     add_job(jobs, Job(kernel, "combined", (path,), (path,), False, True))
@@ -304,7 +313,7 @@ def build_matrix(
         tool_change = True
 
     if tool_change:
-        add_job(jobs, combined_job(repo, current[0]))
+        add_job(jobs, served_job(repo, current[0]))
     return serialize(jobs)
 
 
@@ -320,6 +329,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (MatrixError, OSError, VerificationError) as error:
+    except (MatrixError, OSError, SelectionError, VerificationError) as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(2)
