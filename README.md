@@ -19,6 +19,13 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
+### 2026.10.20 / 7.3
+
+- Add `v7.x/cjktty-code-7.3.patch` for Linux 7.3, carrying the bytes the 7.3-rc1
+  code patch already had. Linux 7.3 is published in split form only: apply
+  `cjktty-font-unifont-15.1.04.patch`, then the code patch. The combined form ended
+  with Linux 7.2, so there is no `cjktty-7.3.patch`.
+
 ### 2026.10.17 / 5.10.272, 5.15.223, 6.1.190, 6.6.159, 6.12.113, 6.18.57, 7.2.11, 7.3-rc7
 
 - Record 5.10.272, 5.15.223, 6.1.190, 6.6.159, 6.12.113, 6.18.57 and 7.2.11 against
@@ -170,8 +177,8 @@ patch -p1 --fuzz=0 < ../cjktty-patches/cjktty-font-unifont-15.1.04.patch
 patch -p1 --fuzz=0 < ../cjktty-patches/v6.x/cjktty-code-6.18.patch
 ```
 
-The combined form is planned to end with Linux 7.3, after which only the split
-form is published.
+The combined form ended with Linux 7.2. From Linux 7.3 on, only the split form
+is published.
 
 Enable all following kernel options:
 
