@@ -53,6 +53,9 @@ jobs:
       - name: Check the split patches still match their combined form
         run: python3 tools/test-split-matches-combined.py
 
+      - name: Test the split-only rule from Linux 7.3
+        run: python3 tools/test-split-only.py
+
       - name: Test patch splitter
         env:
           CJKTTY_LAB: ${{ runner.temp }}/cjktty

@@ -17,14 +17,14 @@ tools/check-release-drift.py \
 ```
 
 Reads kernel.org's `releases.json` feed and checks the active, non-EOL
-`mainline`, `stable` and `longterm` series with a published cjktty-patches
-monolithic patch. Archived series are deliberately omitted even though archived
-patches remain published. For each watched series, the script selects the newest
-versioned `cjktty-<version>.patch` filename; split `cjktty-code-*` patches are
-not a second patch lineage and are omitted.
+`mainline`, `stable` and `longterm` series that `patch_selection.py` serves.
+Archived series are deliberately omitted even though archived patches remain
+published. Through Linux 7.2 the selected patch is the newest versioned
+`cjktty-<version>.patch`; from Linux 7.3 on it is the shared font patch followed
+by the newest `cjktty-code-<version>.patch`.
 
-Each patch is checked against the feed's current release with
-`patch -p1 --fuzz=0 --dry-run`. A stable or longterm reject exits nonzero. A
+Each patch set is applied to the feed's current release in order with
+`patch -p1 --fuzz=0`; the last patch runs with `--dry-run`. A stable or longterm reject exits nonzero. A
 mainline release-candidate reject is reported but exits zero because movement is
 expected during the RC cycle. Network, feed and extraction errors are reported
 separately and exit 2 rather than being mislabeled as patch drift.
@@ -53,20 +53,35 @@ invalidate the measurement recorded against its bytes. A split record whose
 digest keys are not exactly its declared font and code paths exits 2. An unreadable or malformed release
 feed or verification file exits 2.
 
+A split-only kernel needs a split `stage-1` record and may carry no combined
+record; its row leaves the combined column empty and exits 2 unless a split record
+names the font and code patches that selection serves. Every older kernel still
+needs a combined `stage-1` record.
+
 ## patch_selection.py
 
 ```sh
 python3 tools/patch_selection.py . 6.12.103
 ```
 
-Prints the monolithic patch selected for one kernel version. Within the same
-major and minor series, the newest patch version not newer than the kernel wins;
-therefore Linux 6.12.103 selects `v6.x/cjktty-6.12.102.patch`. A bare series
-patch is the baseline for a release candidate when no earlier candidate exists.
+Prints the patches that serve one kernel version, one path per line in
+application order. Within the same major and minor series, the newest patch
+version not newer than the kernel wins; therefore Linux 6.12.103 selects
+`v6.x/cjktty-6.12.102.patch`. A bare series patch is the baseline for a release
+candidate when no earlier candidate exists.
+
+The combined form ended with Linux 7.2. `SPLIT_ONLY_FROM` in `patch_selection.py`
+makes every kernel from Linux 7.3 on, release candidates of later series included,
+split-only: selection ignores combined patches for it and prints
+`cjktty-font-unifont-15.1.04.patch` followed by the newest
+`cjktty-code-<version>.patch`, so Linux 7.3 selects
+`v7.x/cjktty-code-7.3.patch` even though `v7.x/cjktty-7.3-rc1.patch` applies.
+The 7.3 release candidates keep their combined patch.
 
 An invalid kernel version or a series with no applicable patch exits 1 without
-printing a path. Supplying anything other than the repository and kernel version
-exits 2. Selection does not apply the patch.
+printing a path. Supplying anything other than the repository and kernel version,
+or a repository without exactly one `cjktty-font-unifont-*.patch`, exits 2.
+Selection does not apply the patch.
 
 ## fetch-kernel.sh
 
@@ -93,7 +108,10 @@ python3 tools/ci-matrix.py --all
 
 Prints the JSON `apply` and `boot` matrices consumed by
 `.github/workflows/ci.yml`. A maintained combined patch produces both jobs for
-the maintained kernel it serves; the first command selects Linux 6.12.103.
+the maintained kernel it serves; the first command selects Linux 6.12.103. A
+split-only kernel is built from its font and code patches wherever an older
+kernel would use its combined patch: under `--all`, for a tool change and under
+the CJK32 data patch.
 An archived combined patch produces an apply-only job. Split code, shared font,
 CJK32 data and loadable-font changes select their corresponding jobs, while
 documentation-only paths select none. `--all` selects all eight maintained
@@ -218,11 +236,27 @@ Runs `split-patch.py` on the combined counterpart of every
 with the published split code patch. The current repository checks nine split
 forms twice, once for the code half and once for the font half.
 
-A split code patch with no combined counterpart, code bytes that differ from
+A split-only code patch has no combined counterpart; it passes when it carries
+no `lib/fonts/font_cjk_*.h` stanza and fails when it has a combined counterpart.
+A combined patch copied over `cjktty-code-7.3.patch` returned exit 1.
+
+Any other split code patch with no combined counterpart, code bytes that differ from
 splitting that counterpart, or generated font bytes that differ from
 `cjktty-font-unifont-15.1.04.patch`, exits 1. Changing the first font data byte
 returns nine font failures with nine code passes, exit 1. A deliberately divergent
 `cjktty-code-1.0.patch` returned exit 1.
+
+## test-split-only.py
+
+```sh
+python3 tools/test-split-only.py
+```
+
+Builds a fixture repository holding the 7.2 combined patch, the 7.3-rc1 combined
+and code patches and a 7.3 code patch, then runs the selection, verification,
+drift, `SUPPORTED.md` and CI matrix tools against it. Run against the tools from
+before the split-only rule, 12 of its 15 checks fail, among them Linux 7.3
+selecting `cjktty-7.3-rc1.patch`.
 
 ## port.sh
 

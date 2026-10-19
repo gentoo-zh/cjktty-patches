@@ -47,11 +47,17 @@ def supported_rows() -> list[dict[str, str]]:
 
 
 NEWEST = supported_rows()[0]
+FONT_PATCH = "cjktty-font-unifont-15.1.04.patch"
+
+
+def served(row: dict[str, str]) -> list[str]:
+    """A row without a combined patch is a split-only kernel."""
+    return [row["combined"]] if row["combined"] else [FONT_PATCH, row["code"]]
 
 
 def newest_case(label: str, changed: list[str], name: str, cjk32: bool) -> Case:
     """A change to a shared file is tested against the newest maintained kernel."""
-    apply_patches = [NEWEST["combined"]]
+    apply_patches = served(NEWEST)
     if cjk32:
         apply_patches.append("cjktty-add-cjk32x32-font-data.patch")
     return (
@@ -72,7 +78,7 @@ def newest_case(label: str, changed: list[str], name: str, cjk32: bool) -> Case:
                     {
                         "name": f"Build and boot Linux {NEWEST['kernel']} {name}",
                         "version": NEWEST["kernel"],
-                        "patches": [NEWEST["combined"]],
+                        "patches": served(NEWEST),
                         "cjk32": cjk32,
                         "script": "tools/test-patch.sh",
                     }
@@ -205,7 +211,12 @@ CASES += (
         "CJK32 patches",
         cjk32=True,
     ),
-    newest_case("test tool", ["tools/test-patch.sh"], "combined patch", cjk32=False),
+    newest_case(
+        "test tool",
+        ["tools/test-patch.sh"],
+        "combined patch" if NEWEST["combined"] else "split patches",
+        cjk32=False,
+    ),
 )
 
 

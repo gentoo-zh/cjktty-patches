@@ -22,9 +22,9 @@ shift
 patch_files=("$@")
 if [ ${#patch_files[@]} -eq 0 ]; then
 	command -v python3 >/dev/null || die "python3 is not installed"
-	selected_patch=$(python3 "$repo/tools/patch_selection.py" "$repo" "$version") ||
+	selected_patches=$(python3 "$repo/tools/patch_selection.py" "$repo" "$version") ||
 		die "no patch for $version"
-	patch_files=("$selected_patch")
+	mapfile -t patch_files <<< "$selected_patches"
 fi
 for patch_file in "${patch_files[@]}"; do
 	[ -f "$patch_file" ] || die "patch not found: $patch_file"

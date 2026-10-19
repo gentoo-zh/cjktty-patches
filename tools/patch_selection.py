@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Select the repository patch for a kernel version."""
+"""Select the repository patches for a kernel version."""
 
 from __future__ import annotations
 
@@ -15,10 +15,19 @@ VERSION_RE = re.compile(
     r"(?:\.(?P<point>[0-9]+))?(?:-rc(?P<rc>[0-9]+))?$"
 )
 PATCH_RE = re.compile(rf"^cjktty-(?P<version>{VERSION_TEXT})\.patch$")
+CODE_PATCH_RE = re.compile(rf"^cjktty-code-(?P<version>{VERSION_TEXT})\.patch$")
+FONT_PATCH_GLOB = "cjktty-font-unifont-*.patch"
+# The combined form ended with 7.2. From 7.3 on a kernel is served by the shared
+# font patch and its series' code patch, even where an older combined patch applies.
+SPLIT_ONLY_FROM = "7.3"
 
 
 class VersionError(ValueError):
     """A version cannot be ordered by the repository rule."""
+
+
+class SelectionError(ValueError):
+    """The repository does not hold exactly one shared font patch."""
 
 
 @dataclass(frozen=True)
@@ -67,12 +76,16 @@ def series_of(version: str) -> str:
     return parse_version(version).series
 
 
-def select_patch(repo: Path, kernel_version: str) -> Path | None:
+def split_only(kernel_version: str) -> bool:
+    return version_key(kernel_version) >= version_key(SPLIT_ONLY_FROM)
+
+
+def newest_patch(repo: Path, kernel_version: str, pattern: re.Pattern[str]) -> Path | None:
     target = parse_version(kernel_version)
     candidates: list[tuple[tuple[int, int, int, int, int], Path]] = []
     series_patch: Path | None = None
     for path in (repo / f"v{target.major}.x").glob("cjktty-*.patch"):
-        match = PATCH_RE.fullmatch(path.name)
+        match = pattern.fullmatch(path.name)
         if not match or not path.is_file():
             continue
         version = parse_version(match.group("version"))
@@ -90,17 +103,50 @@ def select_patch(repo: Path, kernel_version: str) -> Path | None:
     return None
 
 
+def select_patch(repo: Path, kernel_version: str) -> Path | None:
+    """The combined patch, which no kernel in a split-only series has."""
+    if split_only(kernel_version):
+        return None
+    return newest_patch(repo, kernel_version, PATCH_RE)
+
+
+def font_patch(repo: Path) -> Path:
+    fonts = sorted(path for path in repo.glob(FONT_PATCH_GLOB) if path.is_file())
+    if len(fonts) != 1:
+        raise SelectionError(
+            f"expected one {FONT_PATCH_GLOB} in {repo}, found {len(fonts)}"
+        )
+    return fonts[0]
+
+
+def select_patches(repo: Path, kernel_version: str) -> tuple[Path, ...] | None:
+    """The patches serving a kernel, in the order they are applied."""
+    combined = select_patch(repo, kernel_version)
+    if combined is not None:
+        return (combined,)
+    if not split_only(kernel_version):
+        return None
+    code = newest_patch(repo, kernel_version, CODE_PATCH_RE)
+    if code is None:
+        return None
+    return (font_patch(repo), code)
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print(f"usage: {sys.argv[0]} <repository> <kernel-version>", file=sys.stderr)
         return 2
     try:
-        patch = select_patch(Path(sys.argv[1]), sys.argv[2])
+        patches = select_patches(Path(sys.argv[1]), sys.argv[2])
     except VersionError:
         return 1
-    if patch is None:
+    except SelectionError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    if patches is None:
         return 1
-    print(patch)
+    for patch in patches:
+        print(patch)
     return 0
 
 
