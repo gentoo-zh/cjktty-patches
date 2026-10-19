@@ -15,6 +15,10 @@ cjktty-patches 是一组 framebuffer console CJK 渲染补丁，供 `gentoo-zh/o
 
 **字体数据与源代码分别存放在不同补丁中：八个内核共用一份 12 MB 字体补丁，每个内核各有一份 33–44 KB 源代码补丁。**
 
+### 2026.10.20 / 7.3
+
+- 新增 Linux 7.3 的 `v7.x/cjktty-code-7.3.patch`，内容与 7.3-rc1 的源代码补丁相同。Linux 7.3 只发布拆分形式：先应用 `cjktty-font-unifont-15.1.04.patch`，再应用源代码补丁。合并形式已在 Linux 7.2 终止，因此不提供 `cjktty-7.3.patch`。
+
 ### 2026.10.17 / 5.10.272, 5.15.223, 6.1.190, 6.6.159, 6.12.113, 6.18.57, 7.2.11, 7.3-rc7
 
 - 记录 5.10.272、5.15.223、6.1.190、6.6.159、6.12.113、6.18.57 与 7.2.11，全部沿用原有补丁。6.12.113 修改了 `drivers/tty/vt/vt.c`，6.18.57 修改了 `fbcon.c`，改动都不在补丁的 hunk 内。
@@ -133,7 +137,7 @@ patch -p1 --fuzz=0 < ../cjktty-patches/cjktty-font-unifont-15.1.04.patch
 patch -p1 --fuzz=0 < ../cjktty-patches/v6.x/cjktty-code-6.18.patch
 ```
 
-合并形式预计在 Linux 7.3 终止，此后只发布拆分形式。
+合并形式已在 Linux 7.2 终止，自 Linux 7.3 起只发布拆分形式。
 
 启用以下所有内核配置选项：
 
