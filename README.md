@@ -19,6 +19,12 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
+### 2026.10.22 / 5.10.272, 5.15.223, 6.1.190, 6.6.160, 6.12.114, 6.18.58, 7.2.12, 7.3
+
+- Record 6.6.160, 6.12.114, 6.18.58 and 7.2.12 against the patches they already
+  use. 6.6.160 changed `drivers/tty/vt/vt.c` and `fbcon.c`, and 6.12.114 changed
+  `fbcon.c`, all outside the patched hunks.
+
 ### 2026.10.20 / 7.3
 
 - Add `v7.x/cjktty-code-7.3.patch` for Linux 7.3, carrying the bytes the 7.3-rc1
@@ -31,11 +37,6 @@ The patches are based on
 - Record 5.10.272, 5.15.223, 6.1.190, 6.6.159, 6.12.113, 6.18.57 and 7.2.11 against
   the patches they already use. 6.12.113 changed `drivers/tty/vt/vt.c` and 6.18.57
   changed `fbcon.c`, both outside the patched hunks.
-
-### 2026.10.12 / 6.18.56, 7.2.10, 7.3-rc7
-
-- Record 6.18.56, 7.2.10 and 7.3-rc7 against the patches they already use.
-  Each changed `drivers/tty/vt/vt.c` and `selection.c` only outside the patched hunks.
 
 Complete release history is recorded in [CHANGELOG.md](CHANGELOG.md).
 

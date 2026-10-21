@@ -1,5 +1,11 @@
 # Changes
 
+## 2026.10.22 / 5.10.272, 5.15.223, 6.1.190, 6.6.160, 6.12.114, 6.18.58, 7.2.12, 7.3
+
+- Record 6.6.160, 6.12.114, 6.18.58 and 7.2.12 against the patches they already
+  use. 6.6.160 changed `drivers/tty/vt/vt.c` and `fbcon.c`, and 6.12.114 changed
+  `fbcon.c`, all outside the patched hunks.
+
 ## 2026.10.20 / 7.3
 
 - Add `v7.x/cjktty-code-7.3.patch` for Linux 7.3, carrying the bytes the 7.3-rc1
