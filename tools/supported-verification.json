@@ -2040,5 +2040,61 @@
       "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
       "v6.x/cjktty-code-6.1.184.patch": "076a703fca01f4eff23086bb01ef29bb7ea27cb4fceaf7776a81af03dbb3934e"
     }
+  },
+  {
+    "kernel": "5.15.225",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "digests": {
+      "v5.x/cjktty-5.15.217.patch": "e9e5df0f67d35aaf3f9ba0f317bcae4042648bc843c157b979c369296bfb5297"
+    }
+  },
+  {
+    "kernel": "5.15.225",
+    "stage": "stage-2",
+    "date": "2026-11-11",
+    "digests": {
+      "v5.x/cjktty-5.15.217.patch": "e9e5df0f67d35aaf3f9ba0f317bcae4042648bc843c157b979c369296bfb5297"
+    }
+  },
+  {
+    "kernel": "5.15.225",
+    "form": "split",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "font_patch": "cjktty-font-unifont-15.1.04.patch",
+    "code_patch": "v5.x/cjktty-code-5.15.217.patch",
+    "digests": {
+      "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
+      "v5.x/cjktty-code-5.15.217.patch": "f3f5dbc34ffbf24d291fc99570695266492a8168db384b08b3236eb072a35c74"
+    }
+  },
+  {
+    "kernel": "5.10.274",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "digests": {
+      "v5.x/cjktty-5.10.265.patch": "53e6abda8b44464c6a4c4615b4bbaf9e1c0b8eccb9fd3d3e884a1b5ab301a0ba"
+    }
+  },
+  {
+    "kernel": "5.10.274",
+    "stage": "stage-2",
+    "date": "2026-11-11",
+    "digests": {
+      "v5.x/cjktty-5.10.265.patch": "53e6abda8b44464c6a4c4615b4bbaf9e1c0b8eccb9fd3d3e884a1b5ab301a0ba"
+    }
+  },
+  {
+    "kernel": "5.10.274",
+    "form": "split",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "font_patch": "cjktty-font-unifont-15.1.04.patch",
+    "code_patch": "v5.x/cjktty-code-5.10.265.patch",
+    "digests": {
+      "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
+      "v5.x/cjktty-code-5.10.265.patch": "1f240c94624f2449262687912e0605fa5e247cf4098a338d78d5d9f71b1995ec"
+    }
   }
 ]
