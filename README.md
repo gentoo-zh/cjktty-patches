@@ -26,6 +26,22 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
+### 2026.11.11 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.117, 6.18.63, 7.3.4
+
+- Add `v6.x/cjktty-6.12.117.patch` and `v6.x/cjktty-6.18.63.patch` with their code
+  patches. Both releases added `#include "fbcon_rotate.h"` to `bitblit.c`, which
+  moved the context of the patch's first hunk there; every other hunk is unchanged.
+- Add `v7.x/cjktty-code-7.3.4.patch`. 7.3.4 moved the rotated-font state into
+  `struct fbcon_rotated` and made `fbcon_do_set_font()` rebuild it and free the
+  replaced buffer. The CJK buffer fields now sit in that struct, and a font change
+  frees the CJK buffer too, with `kvfree()` because the patch allocates both buffers
+  with `kvmalloc_array()`.
+- Record 5.10.274, 5.15.225, 6.1.192 and 6.6.162 against the patches they
+  already use. 6.1.191 changed `drivers/tty/vt/vt.c` and `fbcon.c`, both outside
+  the patched hunks.
+- `SUPPORTED.md` still lists the 2026-10-22 releases, because kernel.org now lists
+  7.4-rc2 and no patch serves it yet.
+
 ### 2026.10.22 / 5.10.272, 5.15.223, 6.1.190, 6.6.160, 6.12.114, 6.18.58, 7.2.12, 7.3
 
 - Record 6.6.160, 6.12.114, 6.18.58 and 7.2.12 against the patches they already
@@ -38,12 +54,6 @@ The patches are based on
   code patch already had. Linux 7.3 is published in split form only: apply
   `cjktty-font-unifont-15.1.04.patch`, then the code patch. The combined form ended
   with Linux 7.2, so there is no `cjktty-7.3.patch`.
-
-### 2026.10.17 / 5.10.272, 5.15.223, 6.1.190, 6.6.159, 6.12.113, 6.18.57, 7.2.11, 7.3-rc7
-
-- Record 5.10.272, 5.15.223, 6.1.190, 6.6.159, 6.12.113, 6.18.57 and 7.2.11 against
-  the patches they already use. 6.12.113 changed `drivers/tty/vt/vt.c` and 6.18.57
-  changed `fbcon.c`, both outside the patched hunks.
 
 Complete release history is recorded in [CHANGELOG.md](CHANGELOG.md).
 
