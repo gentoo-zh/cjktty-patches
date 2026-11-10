@@ -1904,5 +1904,61 @@
       "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
       "v6.x/cjktty-code-6.6.152.patch": "9951c6cc75d0b29c500a881247bfabea6c3fbfb5cea77cfa76c9f3e1d006b982"
     }
+  },
+  {
+    "kernel": "6.12.117",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "digests": {
+      "v6.x/cjktty-6.12.117.patch": "31e1254d76c23e2aed4bb8c2c38bafb1408668ff8b391847fb988feb2b83ab04"
+    }
+  },
+  {
+    "kernel": "6.12.117",
+    "stage": "stage-2",
+    "date": "2026-11-11",
+    "digests": {
+      "v6.x/cjktty-6.12.117.patch": "31e1254d76c23e2aed4bb8c2c38bafb1408668ff8b391847fb988feb2b83ab04"
+    }
+  },
+  {
+    "kernel": "6.12.117",
+    "form": "split",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "font_patch": "cjktty-font-unifont-15.1.04.patch",
+    "code_patch": "v6.x/cjktty-code-6.12.117.patch",
+    "digests": {
+      "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
+      "v6.x/cjktty-code-6.12.117.patch": "3941b99c8841dd3c1812b9e81b4ee816a9ac69eaa064504442c5120d08d1ba02"
+    }
+  },
+  {
+    "kernel": "6.18.63",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "digests": {
+      "v6.x/cjktty-6.18.63.patch": "a6b2b074562782ade0a5bbb94c29f511fd7da665c220ce0430793934d7288ccc"
+    }
+  },
+  {
+    "kernel": "6.18.63",
+    "stage": "stage-2",
+    "date": "2026-11-11",
+    "digests": {
+      "v6.x/cjktty-6.18.63.patch": "a6b2b074562782ade0a5bbb94c29f511fd7da665c220ce0430793934d7288ccc"
+    }
+  },
+  {
+    "kernel": "6.18.63",
+    "form": "split",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "font_patch": "cjktty-font-unifont-15.1.04.patch",
+    "code_patch": "v6.x/cjktty-code-6.18.63.patch",
+    "digests": {
+      "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
+      "v6.x/cjktty-code-6.18.63.patch": "6230104f8aa22ae8e277730b65d7f7e4102ceb0cbb60bde5ea5820f63aa75166"
+    }
   }
 ]
