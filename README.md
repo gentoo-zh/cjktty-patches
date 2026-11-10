@@ -2,8 +2,15 @@
 
 # cjktty-patches
 
-cjktty-patches is a framebuffer-console CJK rendering patch collection used by
-`gentoo-zh/overlay` for Gentoo kernels and selected CachyOS and XanMod kernels.
+cjktty-patches is a framebuffer-console CJK rendering patch collection maintained
+mainly for Gentoo. `gentoo-zh/overlay` applies it to its Gentoo kernels and to its
+CachyOS, XanMod and Liquorix kernels.
+
+The patches are made against kernel.org sources. Other kernels built on a kernel.org
+mainline, stable or longterm release can usually apply them, provided those kernels
+do not change the console code the patches modify in `drivers/tty/vt/`,
+`drivers/video/fbdev/core/`, `lib/fonts/` and the related headers under
+`include/linux/`.
 
 The patches are based on
 [gentoo-zh/linux-cjktty](https://github.com/gentoo-zh/linux-cjktty);
