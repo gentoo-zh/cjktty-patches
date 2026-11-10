@@ -1984,5 +1984,61 @@
       "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
       "v7.x/cjktty-code-7.3.4.patch": "8d78569fa5a1a24506de523ec37da2288b3ad1d2b8541ca1fa39657dcc3b1b9d"
     }
+  },
+  {
+    "kernel": "6.6.162",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "digests": {
+      "v6.x/cjktty-6.6.152.patch": "ace590d391bbe6f6024a20e8a557e5fac510ff84fa9bf57c52f4be733c4ad000"
+    }
+  },
+  {
+    "kernel": "6.6.162",
+    "stage": "stage-2",
+    "date": "2026-11-11",
+    "digests": {
+      "v6.x/cjktty-6.6.152.patch": "ace590d391bbe6f6024a20e8a557e5fac510ff84fa9bf57c52f4be733c4ad000"
+    }
+  },
+  {
+    "kernel": "6.6.162",
+    "form": "split",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "font_patch": "cjktty-font-unifont-15.1.04.patch",
+    "code_patch": "v6.x/cjktty-code-6.6.152.patch",
+    "digests": {
+      "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
+      "v6.x/cjktty-code-6.6.152.patch": "9951c6cc75d0b29c500a881247bfabea6c3fbfb5cea77cfa76c9f3e1d006b982"
+    }
+  },
+  {
+    "kernel": "6.1.192",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "digests": {
+      "v6.x/cjktty-6.1.184.patch": "8fc0eb181721f2c6d0f1cbe5a9b7331418645ff3cd746d9e8fab6c3f0b84a152"
+    }
+  },
+  {
+    "kernel": "6.1.192",
+    "stage": "stage-2",
+    "date": "2026-11-11",
+    "digests": {
+      "v6.x/cjktty-6.1.184.patch": "8fc0eb181721f2c6d0f1cbe5a9b7331418645ff3cd746d9e8fab6c3f0b84a152"
+    }
+  },
+  {
+    "kernel": "6.1.192",
+    "form": "split",
+    "stage": "stage-1",
+    "date": "2026-11-11",
+    "font_patch": "cjktty-font-unifont-15.1.04.patch",
+    "code_patch": "v6.x/cjktty-code-6.1.184.patch",
+    "digests": {
+      "cjktty-font-unifont-15.1.04.patch": "21ad81a93fb99c61aa2cb0b57c9f7ac7e00b6bd9108626e5f0733175538c43b9",
+      "v6.x/cjktty-code-6.1.184.patch": "076a703fca01f4eff23086bb01ef29bb7ea27cb4fceaf7776a81af03dbb3934e"
+    }
   }
 ]
