@@ -2,7 +2,9 @@
 
 # cjktty-patches
 
-cjktty-patches 是一组 framebuffer console CJK 渲染补丁，供 `gentoo-zh/overlay` 中的 Gentoo 内核及部分 CachyOS、XanMod 内核使用。
+cjktty-patches 是一组 framebuffer console CJK 渲染补丁，主要为 Gentoo 维护。`gentoo-zh/overlay` 将其用于该仓库中的 Gentoo 内核，以及 CachyOS、XanMod 与 Liquorix 内核。
+
+补丁以 kernel.org 的源代码为基准制作。基于 kernel.org mainline、stable 或 longterm 版本构建的其他内核通常也能应用这些补丁，前提是这些内核未改动补丁修改的控制台源代码，即 `drivers/tty/vt/`、`drivers/video/fbdev/core/`、`lib/fonts/` 以及 `include/linux/` 下的相关头文件。
 
 补丁基于 [gentoo-zh/linux-cjktty](https://github.com/gentoo-zh/linux-cjktty)；本仓库追加的修复记录在 [CHANGELOG.md](CHANGELOG.md)。
 
