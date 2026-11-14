@@ -15,6 +15,8 @@ import tempfile
 from patch_selection import split_only
 
 REPO = Path(__file__).resolve().parent.parent
+# Every combined patch carries the 15.1.04 data: the combined form ended with
+# 7.2, before any later font patch, so the newest font patch is not its reference.
 FONT_PATCH = REPO / "cjktty-font-unifont-15.1.04.patch"
 SPLITTER = REPO / "tools" / "split-patch.py"
 SPLIT_MODULE = runpy.run_path(str(SPLITTER))

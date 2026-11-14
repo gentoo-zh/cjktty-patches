@@ -4,6 +4,7 @@
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 REPO = Path(__file__).resolve().parent.parent
 SCRIPT = REPO / "tools" / "patch_selection.py"
@@ -20,14 +21,62 @@ CASES = (
 )
 
 
-def run_selector(version: str) -> subprocess.CompletedProcess[str]:
+# 9.0.06 sorts last as a string; only numeric order reaches 18.0.01.
+FONT_RELEASES = ("9.0.06", "15.1.04", "18.0.01")
+
+
+def run_selector(version: str, repo: Path = REPO) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-B", str(SCRIPT), str(REPO), version],
+        [sys.executable, "-B", str(SCRIPT), str(repo), version],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
     )
+
+
+def font_repo(root: Path, fonts: tuple[str, ...]) -> Path:
+    (root / "v7.x").mkdir()
+    (root / "v7.x" / "cjktty-code-7.3.patch").touch()
+    for name in fonts:
+        (root / name).touch()
+    return root
+
+
+def font_cases() -> int:
+    """The newest font patch serves a split kernel; a name without a version stops selection."""
+    failures = 0
+    names = tuple(f"cjktty-font-unifont-{release}.patch" for release in FONT_RELEASES)
+    with tempfile.TemporaryDirectory() as scratch:
+        repo = font_repo(Path(scratch), names)
+        result = run_selector("7.3", repo)
+        expected = f"{repo / names[-1]}\n{repo / 'v7.x' / 'cjktty-code-7.3.patch'}\n"
+        if result.returncode == 0 and result.stdout == expected and not result.stderr:
+            print(f"PASS: newest font patch: 7.3 -> {names[-1]}")
+        else:
+            print(
+                f"FAIL: newest font patch: expected stdout={expected!r}, "
+                f"got stdout={result.stdout!r}; exit {result.returncode}, "
+                f"stderr={result.stderr!r}"
+            )
+            failures += 1
+
+    for label, fonts in (
+        ("malformed font version", (names[-1], "cjktty-font-unifont-18.0.patch")),
+        ("font patch without a version", (names[-1], "cjktty-font-unifont-new.patch")),
+        ("no font patch", ()),
+    ):
+        with tempfile.TemporaryDirectory() as scratch:
+            result = run_selector("7.3", font_repo(Path(scratch), fonts))
+        if result.returncode == 2 and not result.stdout and "error:" in result.stderr:
+            print(f"PASS: {label} exits 2")
+        else:
+            print(
+                f"FAIL: {label}: exit {result.returncode}, "
+                f"stdout={result.stdout!r}, stderr={result.stderr!r}"
+            )
+            failures += 1
+    return failures
 
 
 def main() -> int:
@@ -94,7 +143,9 @@ def main() -> int:
         )
         failures += 1
 
-    total = len(CASES) + 5
+    failures += font_cases()
+
+    total = len(CASES) + 9
     print(f"patch selection: {total - failures} passed, {failures} failed")
     return 1 if failures else 0
 

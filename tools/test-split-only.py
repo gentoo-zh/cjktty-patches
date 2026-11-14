@@ -126,7 +126,7 @@ def selection_cases(root: Path) -> list[tuple[str, bool, str]]:
     result = run(TOOLS / "patch_selection.py", repo, "7.3")
     results.append(
         (
-            "selection: two font patches exit 2",
+            "selection: a font patch with a malformed version exits 2",
             result.returncode == 2 and not result.stdout,
             f"exit {result.returncode}, stdout={result.stdout!r}",
         )

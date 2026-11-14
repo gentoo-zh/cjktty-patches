@@ -72,16 +72,19 @@ candidate when no earlier candidate exists.
 
 The combined form ended with Linux 7.2. `SPLIT_ONLY_FROM` in `patch_selection.py`
 makes every kernel from Linux 7.3 on, release candidates of later series included,
-split-only: selection ignores combined patches for it and prints
-`cjktty-font-unifont-15.1.04.patch` followed by the newest
-`cjktty-code-<version>.patch`, so Linux 7.3 selects
+split-only: selection ignores combined patches for it and prints the font patch
+followed by the newest `cjktty-code-<version>.patch`, so Linux 7.3 selects
 `v7.x/cjktty-code-7.3.patch` even though `v7.x/cjktty-7.3-rc1.patch` applies.
 The 7.3 release candidates keep their combined patch.
 
+The font patch is the `cjktty-font-unifont-<version>.patch` with the highest
+Unifont release, compared numerically. Older font patches stay in the repository
+because released ebuilds fetch them by name.
+
 An invalid kernel version or a series with no applicable patch exits 1 without
 printing a path. Supplying anything other than the repository and kernel version,
-or a repository without exactly one `cjktty-font-unifont-*.patch`, exits 2.
-Selection does not apply the patch.
+a repository without a `cjktty-font-unifont-*.patch`, or a font patch whose name
+lacks a three-part Unifont version exits 2. Selection does not apply the patch.
 
 ## fetch-kernel.sh
 
@@ -242,7 +245,9 @@ A combined patch copied over `cjktty-code-7.3.patch` returned exit 1.
 
 Any other split code patch with no combined counterpart, code bytes that differ from
 splitting that counterpart, or generated font bytes that differ from
-`cjktty-font-unifont-15.1.04.patch`, exits 1. Changing the first font data byte
+`cjktty-font-unifont-15.1.04.patch`, exits 1. The reference stays 15.1.04 when a
+newer font patch exists, because the combined form ended with Linux 7.2 and every
+combined patch carries the 15.1.04 data. Changing the first font data byte
 returns nine font failures with nine code passes, exit 1. A deliberately divergent
 `cjktty-code-1.0.patch` returned exit 1.
 
