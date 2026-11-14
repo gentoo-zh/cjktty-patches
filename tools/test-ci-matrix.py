@@ -47,7 +47,7 @@ def supported_rows() -> list[dict[str, str]]:
 
 
 NEWEST = supported_rows()[0]
-FONT_PATCH = "cjktty-font-unifont-15.1.04.patch"
+FONT_PATCH = "cjktty-font-unifont-18.0.01.patch"
 
 
 def served(row: dict[str, str]) -> list[str]:
