@@ -225,7 +225,7 @@ The source file list is the ordered union of `diff --git a/` and `--- a/`
 headers. Both forms are required: current patches use plain `---` headers for
 most files, while an empty new file can have only a `diff --git` header.
 
-Apply `cjktty-font-unifont-15.1.04.patch` before the matching
+Apply the font patch, `cjktty-font-unifont-18.0.01.patch`, before the matching
 `cjktty-code-*.patch`.
 
 ## test-split-matches-combined.py
@@ -301,9 +301,11 @@ Terminus. Remaining glyphs come from the official GNU Unifont `.hex` release.
 `gen-font.py` determines halfwidth versus fullwidth from each hex payload, not
 the codepoint, and doubles both axes for 32x32 output. Use
 `font/precompiled/unifont-<version>.hex` from the project's
-[official release tarball](https://unifoundry.com/pub/unifont/). Both current
-arrays match Unifont 15.1.04; later whole-font updates superseded the 13.0.06
-source named by the first 32x32 changelog entry.
+[official release tarball](https://unifoundry.com/pub/unifont/).
+`cjktty-font-unifont-18.0.01.patch` matches Unifont 18.0.01. The combined
+patches, `cjktty-font-unifont-15.1.04.patch` and the 32x32 data patch match
+Unifont 15.1.04; later whole-font updates superseded the 13.0.06 source named by
+the first 32x32 changelog entry.
 
 The generated 16x16 C header selects GPL version 2 and retains the copyright
 notice of the Unifont release it was generated from. The generated 32x32 C

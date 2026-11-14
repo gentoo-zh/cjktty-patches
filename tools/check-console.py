@@ -40,7 +40,8 @@ ROTATED_PREFIX_CELLS = 10
 #: background remains zero. This threshold tolerates colour conversion without
 #: allowing dark background values to become glyph pixels.
 INK_THRESHOLD = 0x40
-#: GNU Unifont 15.1.04 bitmaps for the fixed test text, in display order.
+#: GNU Unifont bitmaps for the fixed test text, in display order; 15.1.04 and
+#: 18.0.01 draw these nine glyphs identically.
 EXPECTED_GLYPHS = (
     (0x4E2D, bytes.fromhex("01000100010001003FF8210821082108210821083FF821080100010001000100")),
     (0x6587, bytes.fromhex("020001000100FFFE10101010082008200440028001000280044008203018C006")),
