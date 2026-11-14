@@ -11,11 +11,17 @@ cjktty-patches 是一组 framebuffer console CJK 渲染补丁，主要为 Gentoo
 - Linux 5.10 将内核配置选项 `CONFIG_FONT_16x16_CJK` 重命名为 `CONFIG_FONT_CJK_16x16`。
 - 32x32 字体数据补丁为高分辨率屏幕提供较大的字体。
 - 内置 CJK 点阵数据要求基础字体尺寸为 8x16 或 16x32；其他基础字体尺寸可能导致字符显示错误。
-- 当前的 CJK 点阵字体数据衍生自 [GNU Unifont](https://savannah.gnu.org/projects/unifont) 15.1.04。32x32 数据的半角字符范围取自 [Terminus Font](http://terminus-font.sourceforge.net)，并通过主线内核的 `font_ter16x32.c` 引入。
+- `cjktty-font-unifont-18.0.01.patch` 的 16x16 CJK 点阵数据衍生自 [GNU Unifont](https://savannah.gnu.org/projects/unifont) 18.0.01；合并补丁与 32x32 数据衍生自 Unifont 15.1.04。32x32 数据的半角字符范围取自 [Terminus Font](http://terminus-font.sourceforge.net)，并通过主线内核的 `font_ter16x32.c` 引入。
 
 ## 更新
 
 **字体数据与源代码分别存放在不同补丁中：八个内核共用一份 12 MB 字体补丁，每个内核各有一份 33–44 KB 源代码补丁。**
+
+### 2026.11.15 / 5.10.272, 5.15.223, 6.1.190, 6.6.160, 6.12.114, 6.18.58, 7.2.12, 7.3
+
+- 新增 `cjktty-font-unifont-18.0.01.patch`，以 GNU Unifont 18.0.01 重新生成 16x16 字体数据。拆分形式改为先应用这份字体补丁，再应用源代码补丁。与 15.1.04 相比有 1,004 个 BMP 字形不同：韩文字母 447 个、阿拉伯文 162 个、注音符号 75 个、CJK 表意文字 84 个，其他文字 236 个。
+- `cjktty-font-unifont-15.1.04.patch` 的内容保持不变，因为已发布的 ebuild 按文件名获取这份补丁。合并补丁与 32x32 数据补丁仍使用 Unifont 15.1.04 的数据。
+- 上列每个内核以新字体补丁加上各自的源代码补丁，通过了两个测试阶段。
 
 ### 2026.11.11 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.117, 6.18.63, 7.3.4
 
@@ -28,10 +34,6 @@ cjktty-patches 是一组 framebuffer console CJK 渲染补丁，主要为 Gentoo
 
 - 记录 6.6.160、6.12.114、6.18.58 与 7.2.12，全部沿用原有补丁。6.6.160 修改了 `drivers/tty/vt/vt.c` 与 `fbcon.c`，6.12.114 修改了 `fbcon.c`，改动都不在补丁的 hunk 内。
 
-### 2026.10.20 / 7.3
-
-- 新增 Linux 7.3 的 `v7.x/cjktty-code-7.3.patch`，内容与 7.3-rc1 的源代码补丁相同。Linux 7.3 只发布拆分形式：先应用 `cjktty-font-unifont-15.1.04.patch`，再应用源代码补丁。合并形式已在 Linux 7.2 终止，因此不提供 `cjktty-7.3.patch`。
-
 完整的版本记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 使用
@@ -42,12 +44,14 @@ cjktty-patches 是一组 framebuffer console CJK 渲染补丁，主要为 Gentoo
 patch -p1 --fuzz=0 < ../cjktty-patches/v6.x/cjktty-6.18.patch
 ```
 
-拆分形式是一份共用字体补丁加上每个内核一份代码补丁，得到的源代码树逐字节相同：
+拆分形式是一份共用字体补丁加上每个内核一份代码补丁：
 
 ```sh
-patch -p1 --fuzz=0 < ../cjktty-patches/cjktty-font-unifont-15.1.04.patch
+patch -p1 --fuzz=0 < ../cjktty-patches/cjktty-font-unifont-18.0.01.patch
 patch -p1 --fuzz=0 < ../cjktty-patches/v6.x/cjktty-code-6.18.patch
 ```
+
+以 `cjktty-font-unifont-15.1.04.patch` 替换 18.0.01 字体补丁时，拆分形式得到的源代码树与合并补丁逐字节相同。
 
 合并形式已在 Linux 7.2 终止，自 Linux 7.3 起只发布拆分形式。
 

@@ -20,11 +20,23 @@ The patches are based on
 - The 32x32 font-data patch provides a larger font for high-resolution screens.
 - The built-in CJK bitmap data requires 8x16 or 16x32 base-font geometry;
   other base-font sizes may render characters incorrectly.
-- The current CJK bitmap data is derived from [GNU Unifont](https://savannah.gnu.org/projects/unifont) 15.1.04. The 32x32 halfwidth range comes from [Terminus Font](http://terminus-font.sourceforge.net) via the mainline kernel's `font_ter16x32.c`.
+- The 16x16 CJK bitmap data in `cjktty-font-unifont-18.0.01.patch` is derived from [GNU Unifont](https://savannah.gnu.org/projects/unifont) 18.0.01; the combined patches and the 32x32 data are derived from Unifont 15.1.04. The 32x32 halfwidth range comes from [Terminus Font](http://terminus-font.sourceforge.net) via the mainline kernel's `font_ter16x32.c`.
 
 ## Updates
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
+
+### 2026.11.15 / 5.10.272, 5.15.223, 6.1.190, 6.6.160, 6.12.114, 6.18.58, 7.2.12, 7.3
+
+- Add `cjktty-font-unifont-18.0.01.patch`, the 16x16 font data rebuilt from GNU
+  Unifont 18.0.01. The split form now applies it before the code patch. 1,004 BMP
+  glyphs differ from 15.1.04: 447 Hangul jamo, 162 Arabic, 75 Bopomofo and 84 CJK
+  ideograph glyphs, and 236 glyphs in other scripts.
+- `cjktty-font-unifont-15.1.04.patch` keeps its bytes because released ebuilds
+  fetch it by name. The combined patches and the 32x32 data patch still carry
+  Unifont 15.1.04.
+- Both stages passed with the new font patch and the code patch of each kernel
+  listed above.
 
 ### 2026.11.11 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.117, 6.18.63, 7.3.4
 
@@ -48,13 +60,6 @@ The patches are based on
   use. 6.6.160 changed `drivers/tty/vt/vt.c` and `fbcon.c`, and 6.12.114 changed
   `fbcon.c`, all outside the patched hunks.
 
-### 2026.10.20 / 7.3
-
-- Add `v7.x/cjktty-code-7.3.patch` for Linux 7.3, carrying the bytes the 7.3-rc1
-  code patch already had. Linux 7.3 is published in split form only: apply
-  `cjktty-font-unifont-15.1.04.patch`, then the code patch. The combined form ended
-  with Linux 7.2, so there is no `cjktty-7.3.patch`.
-
 Complete release history is recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ## Usage
@@ -67,13 +72,15 @@ From the kernel source root, with the patch repository at
 patch -p1 --fuzz=0 < ../cjktty-patches/v6.x/cjktty-6.18.patch
 ```
 
-The split form is one shared font patch and one code patch per kernel, and
-produces a byte-identical source tree:
+The split form is one shared font patch and one code patch per kernel:
 
 ```sh
-patch -p1 --fuzz=0 < ../cjktty-patches/cjktty-font-unifont-15.1.04.patch
+patch -p1 --fuzz=0 < ../cjktty-patches/cjktty-font-unifont-18.0.01.patch
 patch -p1 --fuzz=0 < ../cjktty-patches/v6.x/cjktty-code-6.18.patch
 ```
+
+With `cjktty-font-unifont-15.1.04.patch` in place of the 18.0.01 font patch, the
+split form produces a source tree byte-identical to the combined patch.
 
 The combined form ended with Linux 7.2. From Linux 7.3 on, only the split form
 is published.

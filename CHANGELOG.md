@@ -1,5 +1,21 @@
 # Changes
 
+## 2026.11.15 / 5.10.272, 5.15.223, 6.1.190, 6.6.160, 6.12.114, 6.18.58, 7.2.12, 7.3
+
+- Add `cjktty-font-unifont-18.0.01.patch`, the 16x16 font data rebuilt from GNU
+  Unifont 18.0.01. The split form now applies it before the code patch. 1,004 BMP
+  glyphs differ from 15.1.04: 447 Hangul jamo, 162 Arabic, 75 Bopomofo and 84 CJK
+  ideograph glyphs, and 236 glyphs in other scripts. The nine glyphs that
+  `tools/check-console.py` compares are identical in both releases.
+- `cjktty-font-unifont-15.1.04.patch` keeps its bytes because released ebuilds
+  fetch it by name. The combined patches and the 32x32 data patch still carry
+  Unifont 15.1.04.
+- `tools/patch_selection.py` serves the font patch with the highest Unifont
+  version, and `tools/gen-font.py --format patch` writes a font patch in the
+  layout of the 15.1.04 patch, so the two differ only in changed glyphs.
+- Both stages passed with the new font patch and the code patch of each kernel
+  listed above. `LICENSE` carries the Unifont 18.0.01 copyright notice.
+
 ## 2026.11.11 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.117, 6.18.63, 7.3.4
 
 - Add `v6.x/cjktty-6.12.117.patch` and `v6.x/cjktty-6.18.63.patch` with their code
