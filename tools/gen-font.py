@@ -14,28 +14,42 @@ BASE_GLYPHS = 256
 BYTE = re.compile(r"\b0x([0-9a-fA-F]{2})\b")
 HEX_LINE = re.compile(r"([0-9a-fA-F]{4,6}):([0-9a-fA-F]+)")
 SPDX = {16: "GPL-2.0", 32: "OFL-1.1"}
-HEADER = {
-    16: (
-        "/* Base glyphs are from Linux font_8x16.c. */",
-        "/* Remaining glyphs are derived from GNU Unifont 15.1.04. */",
-        "/*",
+UNIFONT_VERSION = re.compile(r"unifont-([0-9]+\.[0-9]+\.[0-9]+)\.hex")
+# Each release names its own contributors and years, so a version without a
+# recorded notice is refused rather than given another release's notice.
+UNIFONT_NOTICE = {
+    "15.1.04": (
         " * Copyright \N{COPYRIGHT SIGN} 1998-2022 Roman Czyborra, Paul Hardy,",
         " * Qianqian Fang, Andrew Miller, Johnnie Weaver, David Corbett,",
         " * Nils Moskopp, Rebecca Bettencourt, et al.",
-        " */",
     ),
-    32: (
-        "/* Base glyphs are from Terminus Font 4.49.1 via Linux font_ter16x32.c. */",
-        "/* Remaining glyphs are derived from GNU Unifont 15.1.04. */",
-        "/*",
-        " * Copyright \N{COPYRIGHT SIGN} 1998-2022 Roman Czyborra, Paul Hardy,",
+    # COPYRIGHT in font/Makefile of the 18.0.01 release tarball.
+    "18.0.01": (
+        " * Copyright (C) 1998-2026 Roman Czyborra, Paul Hardy,",
         " * Qianqian Fang, Andrew Miller, Johnnie Weaver, David Corbett,",
-        " * Nils Moskopp, Rebecca Bettencourt, et al.",
-        " * Copyright (C) 2020 Dimitar Toshkov Zhekov,",
-        ' * with Reserved Font Name "Terminus Font".',
-        " */",
+        " * \N{LATIN CAPITAL LETTER AE}lla Chiana Moskopp, Rebecca Bettencourt,",
+        " * Minseo Lee, Ho-Seok Ee, et al.",
     ),
 }
+BASE_SOURCE = {
+    16: "/* Base glyphs are from Linux font_8x16.c. */",
+    32: "/* Base glyphs are from Terminus Font 4.49.1 via Linux font_ter16x32.c. */",
+}
+TERMINUS_NOTICE = (
+    " * Copyright (C) 2020 Dimitar Toshkov Zhekov,",
+    ' * with Reserved Font Name "Terminus Font".',
+)
+# cjktty-font-unifont-15.1.04.patch leaves the character out of these glyph
+# comments; keeping the same set lets two font patches diff glyph by glyph.
+UNNAMED_CODEPOINTS = (
+    (0x0000, 0x0020),
+    (0x202A, 0x202B),
+    (0x202D, 0x202E),
+    (0x2066, 0x2068),
+    (0xD800, 0xF8FF),
+    (0xFFFE, 0xFFFF),
+)
+PATCH_PATH = "lib/fonts/font_cjk_{size}x{size}.h"
 PSF2_MAGIC = 0x864AB572
 PSF2_HEADER_SIZE = 32
 
@@ -68,11 +82,28 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--format",
-        choices=("header", "psf2"),
+        choices=("header", "patch", "psf2"),
         default="header",
-        help="output a C header (default) or a loadable PSF2 font",
+        help="output a C header (default), a 16x16 cjktty font patch or a loadable PSF2 font",
+    )
+    parser.add_argument(
+        "--unifont-version",
+        metavar="VERSION",
+        help="Unifont release named in the header (default: from the hex file name)",
     )
     return parser.parse_args()
+
+
+def unifont_version(hex_path: Path, override: str | None) -> str:
+    if override is not None:
+        return override
+    match = UNIFONT_VERSION.fullmatch(hex_path.name)
+    if not match:
+        raise ValueError(
+            f"{hex_path}: cannot read the Unifont version from the file name; "
+            "pass --unifont-version"
+        )
+    return match.group(1)
 
 
 def strip_c_comments(text: str) -> str:
@@ -162,12 +193,67 @@ def generate(hex_path: Path, base_path: Path, size: int) -> bytes:
     return bytes(data)
 
 
-def format_header(data: bytes, size: int) -> str:
-    lines = [f"/* SPDX-License-Identifier: {SPDX[size]} */", *HEADER[size]]
+def format_header(data: bytes, size: int, version: str) -> str:
+    notice = UNIFONT_NOTICE.get(version)
+    if notice is None:
+        raise ValueError(f"no copyright notice recorded for GNU Unifont {version}")
+    lines = [
+        f"/* SPDX-License-Identifier: {SPDX[size]} */",
+        BASE_SOURCE[size],
+        f"/* Remaining glyphs are derived from GNU Unifont {version}. */",
+        "/*",
+        *notice,
+        *(TERMINUS_NOTICE if size == 32 else ()),
+        " */",
+    ]
     for offset in range(0, len(data), 16):
         values = ",".join(f"0x{value:02x}" for value in data[offset : offset + 16])
         lines.append(values + ",")
     return "\n".join(lines) + "\n"
+
+
+def glyph_comment(codepoint: int) -> str:
+    if any(start <= codepoint <= end for start, end in UNNAMED_CODEPOINTS):
+        return f"/* {codepoint} {codepoint:#x} */"
+    return f'/* {codepoint} {codepoint:#x} "{chr(codepoint)}" */'
+
+
+def data_lines(data: bytes) -> list[str]:
+    return [
+        ",".join(f"0x{value:02x}" for value in data[offset : offset + 16]) + ","
+        for offset in range(0, len(data), 16)
+    ]
+
+
+def format_patch(data: bytes, size: int) -> bytes:
+    """The 16x16 font patch in the layout of cjktty-font-unifont-15.1.04.patch."""
+    if size != 16:
+        raise ValueError("--format patch only produces the 16x16 font patch")
+    base_bytes = BASE_GLYPHS * 16
+    body = [f"/* SPDX-License-Identifier: {SPDX[size]} */"]
+    for codepoint in range(BMP_LIMIT):
+        body.append(glyph_comment(codepoint))
+        if codepoint < BASE_GLYPHS:
+            body.extend(data_lines(data[codepoint * 16 : (codepoint + 1) * 16]))
+            # The empty right halves of the 256 base glyphs follow the last one.
+            if codepoint == BASE_GLYPHS - 1:
+                body.extend(data_lines(data[base_bytes : 2 * base_bytes]))
+        else:
+            offset = 2 * base_bytes + (codepoint - BASE_GLYPHS) * 32
+            body.extend(data_lines(data[offset : offset + 32]))
+    path16 = PATCH_PATH.format(size=16)
+    path32 = PATCH_PATH.format(size=32)
+    lines = [
+        f"diff --git a/{path16} b/{path16}",
+        f"--- a/{path16}",
+        f"+++ b/{path16}",
+        f"@@ -0,0 +1,{len(body)} @@",
+        *(f"+{line}" for line in body),
+        f"diff --git a/{path32} b/{path32}",
+        "new file mode 100644",
+        "index 0000000..e69de29",
+    ]
+    return ("\n".join(lines) + "\n").encode("utf-8")
 
 
 def format_psf2(data: bytes, size: int) -> bytes:
@@ -260,18 +346,24 @@ def main() -> int:
     args = parse_args()
     try:
         data = generate(args.hex_file, args.base_font, args.size)
-        if args.format == "psf2":
+        if args.format in ("patch", "psf2"):
             if args.compare:
                 raise ValueError("--compare only accepts C header output")
-            output = format_psf2(data, args.size)
+            if args.format == "patch":
+                output = format_patch(data, args.size)
+            else:
+                output = format_psf2(data, args.size)
             if args.output:
                 args.output.write_bytes(output)
             else:
                 sys.stdout.buffer.write(output)
-        elif args.output:
-            args.output.write_text(format_header(data, args.size), encoding="utf-8")
-        elif not args.compare:
-            sys.stdout.write(format_header(data, args.size))
+        elif args.output or not args.compare:
+            version = unifont_version(args.hex_file, args.unifont_version)
+            header = format_header(data, args.size, version)
+            if args.output:
+                args.output.write_text(header, encoding="utf-8")
+            else:
+                sys.stdout.write(header)
 
         if args.compare:
             reference = read_reference(args.compare, args.size)
