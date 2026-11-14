@@ -300,17 +300,32 @@ the codepoint, and doubles both axes for 32x32 output. Use
 arrays match Unifont 15.1.04; later whole-font updates superseded the 13.0.06
 source named by the first 32x32 changelog entry.
 
-The generated 16x16 C header selects GPL version 2 and retains the GNU
-Unifont 15.1.04 copyright notice. The generated 32x32 C header selects
-OFL-1.1 and retains both the Unifont notice and the Terminus Font 4.49.1
-copyright and Reserved Font Name notice. The repository's `LICENSE` contains
+The generated 16x16 C header selects GPL version 2 and retains the copyright
+notice of the Unifont release it was generated from. The generated 32x32 C
+header selects OFL-1.1 and retains both the Unifont notice and the Terminus
+Font 4.49.1 copyright and Reserved Font Name notice. The release is read from
+the `unifont-<version>.hex` file name, or from `--unifont-version` for a file
+named otherwise. A release without a notice recorded in `UNIFONT_NOTICE` exits 2,
+because each Unifont release names its own contributors and years. The repository's `LICENSE` contains
 the copyright notices and the complete GPL version 2 and OFL-1.1 texts. Distribute
 generated C headers and PSF2 files with `LICENSE`; PSF2 has no field for license
 metadata.
 
 The default output is the C header used by the existing patches. The `psf2`
 format wraps the same bytes as 131,072 half-cell glyphs for the loadable-font
-prototype.
+prototype. The `patch` format, 16x16 only, writes a complete
+`cjktty-font-unifont-<version>.patch`: the 16x16 header with one comment per
+codepoint, followed by the empty `font_cjk_32x32.h`. From
+`unifont-15.1.04.hex` and the Linux 5.10.274 `font_8x16.c` it reproduces
+`cjktty-font-unifont-15.1.04.patch` byte for byte, so two font patches differ
+only in the glyphs the Unifont releases changed:
+
+```sh
+tools/gen-font.py --format patch --size 16 \
+  --base-font "$CJKTTY_LAB/linux-5.10.274/lib/fonts/font_8x16.c" \
+  --output cjktty-font-unifont-15.1.04.patch \
+  "$CJKTTY_LAB/unifont-15.1.04.hex"
+```
 
 Pass `--compare` with a generated header or a cjktty patch to verify the data
 without writing the generated array:
