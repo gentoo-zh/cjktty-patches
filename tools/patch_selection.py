@@ -17,6 +17,9 @@ VERSION_RE = re.compile(
 PATCH_RE = re.compile(rf"^cjktty-(?P<version>{VERSION_TEXT})\.patch$")
 CODE_PATCH_RE = re.compile(rf"^cjktty-code-(?P<version>{VERSION_TEXT})\.patch$")
 FONT_PATCH_GLOB = "cjktty-font-unifont-*.patch"
+FONT_PATCH_RE = re.compile(
+    r"^cjktty-font-unifont-(?P<version>[0-9]+\.[0-9]+\.[0-9]+)\.patch$"
+)
 # The combined form ended with 7.2. From 7.3 on a kernel is served by the shared
 # font patch and its series' code patch, even where an older combined patch applies.
 SPLIT_ONLY_FROM = "7.3"
@@ -27,7 +30,7 @@ class VersionError(ValueError):
 
 
 class SelectionError(ValueError):
-    """The repository does not hold exactly one shared font patch."""
+    """The repository holds no shared font patch, or one with a malformed version."""
 
 
 @dataclass(frozen=True)
@@ -111,12 +114,18 @@ def select_patch(repo: Path, kernel_version: str) -> Path | None:
 
 
 def font_patch(repo: Path) -> Path:
-    fonts = sorted(path for path in repo.glob(FONT_PATCH_GLOB) if path.is_file())
-    if len(fonts) != 1:
-        raise SelectionError(
-            f"expected one {FONT_PATCH_GLOB} in {repo}, found {len(fonts)}"
-        )
-    return fonts[0]
+    """The newest Unifont release; older font patches stay for released ebuilds."""
+    fonts: list[tuple[tuple[int, ...], Path]] = []
+    for path in repo.glob(FONT_PATCH_GLOB):
+        if not path.is_file():
+            continue
+        match = FONT_PATCH_RE.fullmatch(path.name)
+        if not match:
+            raise SelectionError(f"font patch has no Unifont version: {path.name}")
+        fonts.append((tuple(int(part) for part in match.group("version").split(".")), path))
+    if not fonts:
+        raise SelectionError(f"no {FONT_PATCH_GLOB} in {repo}")
+    return max(fonts)[1]
 
 
 def select_patches(repo: Path, kernel_version: str) -> tuple[Path, ...] | None:
