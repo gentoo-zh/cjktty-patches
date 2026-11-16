@@ -26,6 +26,18 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
+### 2026.11.16 / 7.4-rc3
+
+- Add `v7.x/cjktty-code-7.4-rc3.patch`, ported from `cjktty-code-7.3.4.patch`.
+  7.4 replaced `fbcon_fill_cursor_mask()` with `fbcon_cursor_glyph()`, and the
+  patch's `font_bits()` declaration in `fbcon.h` sat beside the old prototype,
+  so that hunk takes the new context. Every other hunk is unchanged: the CJK
+  cursor code changes the cursor image, not the mask that 7.4 rewrote.
+- Both stages passed with `cjktty-font-unifont-18.0.01.patch` and the new code
+  patch. `SUPPORTED.md` still lists the 2026-10-22 releases, because the records
+  of the current 7.3, 6.18, 6.12, 6.6, 6.1, 5.15 and 5.10 point releases still
+  name the 15.1.04 font patch.
+
 ### 2026.11.15 / 5.10.272, 5.15.223, 6.1.190, 6.6.160, 6.12.114, 6.18.58, 7.2.12, 7.3
 
 - Add `cjktty-font-unifont-18.0.01.patch`, the 16x16 font data rebuilt from GNU
@@ -53,12 +65,6 @@ The patches are based on
   the patched hunks.
 - `SUPPORTED.md` still lists the 2026-10-22 releases, because kernel.org now lists
   7.4-rc2 and no patch serves it yet.
-
-### 2026.10.22 / 5.10.272, 5.15.223, 6.1.190, 6.6.160, 6.12.114, 6.18.58, 7.2.12, 7.3
-
-- Record 6.6.160, 6.12.114, 6.18.58 and 7.2.12 against the patches they already
-  use. 6.6.160 changed `drivers/tty/vt/vt.c` and `fbcon.c`, and 6.12.114 changed
-  `fbcon.c`, all outside the patched hunks.
 
 Complete release history is recorded in [CHANGELOG.md](CHANGELOG.md).
 
