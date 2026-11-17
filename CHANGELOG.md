@@ -1,5 +1,15 @@
 # Changes
 
+## 2026.11.17 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.118, 6.18.64, 7.3.5, 7.4-rc3
+
+- Record 6.12.118, 6.18.64 and 7.3.5 against the patches they already use.
+  6.12.118 and 6.18.64 changed `drivers/video/fbdev/core/fbcon_rotate.c` so that
+  `fbcon_rotate_font()` rebuilds the rotated font when `par->fontbuffer` is NULL;
+  the change is outside the patched hunks.
+- Both stages passed with `cjktty-font-unifont-18.0.01.patch` and those code
+  patches, and with the combined 6.12.117 and 6.18.63 patches, so `SUPPORTED.md`
+  now lists the 2026-11-17 releases.
+
 ## 2026.11.16 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.117, 6.18.63, 7.3.4, 7.4-rc3
 
 - Add `v7.x/cjktty-code-7.4-rc3.patch`, ported from `cjktty-code-7.3.4.patch`.
