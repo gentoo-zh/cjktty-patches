@@ -26,6 +26,16 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
+### 2026.11.17 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.118, 6.18.64, 7.3.5, 7.4-rc3
+
+- Record 6.12.118, 6.18.64 and 7.3.5 against the patches they already use.
+  6.12.118 and 6.18.64 changed `drivers/video/fbdev/core/fbcon_rotate.c` so that
+  `fbcon_rotate_font()` rebuilds the rotated font when `par->fontbuffer` is NULL;
+  the change is outside the patched hunks.
+- Both stages passed with `cjktty-font-unifont-18.0.01.patch` and those code
+  patches, and with the combined 6.12.117 and 6.18.63 patches, so `SUPPORTED.md`
+  now lists the 2026-11-17 releases.
+
 ### 2026.11.16 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.117, 6.18.63, 7.3.4, 7.4-rc3
 
 - Add `v7.x/cjktty-code-7.4-rc3.patch`, ported from `cjktty-code-7.3.4.patch`.
@@ -50,22 +60,6 @@ The patches are based on
   Unifont 15.1.04.
 - Both stages passed with the new font patch and the code patch of each kernel
   listed above.
-
-### 2026.11.11 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.117, 6.18.63, 7.3.4
-
-- Add `v6.x/cjktty-6.12.117.patch` and `v6.x/cjktty-6.18.63.patch` with their code
-  patches. Both releases added `#include "fbcon_rotate.h"` to `bitblit.c`, which
-  moved the context of the patch's first hunk there; every other hunk is unchanged.
-- Add `v7.x/cjktty-code-7.3.4.patch`. 7.3.4 moved the rotated-font state into
-  `struct fbcon_rotated` and made `fbcon_do_set_font()` rebuild it and free the
-  replaced buffer. The CJK buffer fields now sit in that struct, and a font change
-  frees the CJK buffer too, with `kvfree()` because the patch allocates both buffers
-  with `kvmalloc_array()`.
-- Record 5.10.274, 5.15.225, 6.1.192 and 6.6.162 against the patches they
-  already use. 6.1.191 changed `drivers/tty/vt/vt.c` and `fbcon.c`, both outside
-  the patched hunks.
-- `SUPPORTED.md` still lists the 2026-10-22 releases, because kernel.org now lists
-  7.4-rc2 and no patch serves it yet.
 
 Complete release history is recorded in [CHANGELOG.md](CHANGELOG.md).
 

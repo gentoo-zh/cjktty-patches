@@ -17,6 +17,11 @@ cjktty-patches 是一组 framebuffer console CJK 渲染补丁，主要为 Gentoo
 
 **字体数据与源代码分别存放在不同补丁中：八个内核共用一份 12 MB 字体补丁，每个内核各有一份 33–44 KB 源代码补丁。**
 
+### 2026.11.17 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.118, 6.18.64, 7.3.5, 7.4-rc3
+
+- 记录 6.12.118、6.18.64 与 7.3.5，全部沿用原有补丁。6.12.118 与 6.18.64 修改了 `drivers/video/fbdev/core/fbcon_rotate.c`，`par->fontbuffer` 为 NULL 时 `fbcon_rotate_font()` 会重新生成旋转字体；改动不在补丁的 hunk 内。
+- 以 `cjktty-font-unifont-18.0.01.patch` 加上这些源代码补丁，以及 6.12.117 与 6.18.63 的合并补丁，都通过了两个测试阶段，因此 `SUPPORTED.md` 改为列出 2026-11-17 的版本。
+
 ### 2026.11.16 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.117, 6.18.63, 7.3.4, 7.4-rc3
 
 - 新增 `v7.x/cjktty-code-7.4-rc3.patch`，由 `cjktty-code-7.3.4.patch` 移植而来。7.4 以 `fbcon_cursor_glyph()` 取代 `fbcon_fill_cursor_mask()`，而补丁在 `fbcon.h` 中的 `font_bits()` 声明紧邻旧的函数原型，该 hunk 因此改用新的上下文。其余 hunk 均未改动：CJK 光标代码修改的是光标图像，不是 7.4 改写的光标掩码。
@@ -28,13 +33,6 @@ cjktty-patches 是一组 framebuffer console CJK 渲染补丁，主要为 Gentoo
 - 新增 `cjktty-font-unifont-18.0.01.patch`，以 GNU Unifont 18.0.01 重新生成 16x16 字体数据。拆分形式改为先应用这份字体补丁，再应用源代码补丁。与 15.1.04 相比有 1,004 个 BMP 字形不同：韩文字母 447 个、阿拉伯文 162 个、注音符号 75 个、CJK 表意文字 84 个，其他文字 236 个。
 - `cjktty-font-unifont-15.1.04.patch` 的内容保持不变，因为已发布的 ebuild 按文件名获取这份补丁。合并补丁与 32x32 数据补丁仍使用 Unifont 15.1.04 的数据。
 - 上列每个内核以新字体补丁加上各自的源代码补丁，通过了两个测试阶段。
-
-### 2026.11.11 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.117, 6.18.63, 7.3.4
-
-- 新增 `v6.x/cjktty-6.12.117.patch` 与 `v6.x/cjktty-6.18.63.patch` 及对应的源代码补丁。这两个版本在 `bitblit.c` 中新增 `#include "fbcon_rotate.h"`，补丁第一个 hunk 的上下文因此改变；其余 hunk 均未改动。
-- 新增 `v7.x/cjktty-code-7.3.4.patch`。7.3.4 将旋转字体的状态移入 `struct fbcon_rotated`，并由 `fbcon_do_set_font()` 重建该状态、释放被替换的缓冲区。CJK 缓冲区字段因此移入该结构体，更换字体时也一并释放 CJK 缓冲区；补丁以 `kvmalloc_array()` 分配这两个缓冲区，所以释放时使用 `kvfree()`。
-- 记录 5.10.274、5.15.225、6.1.192 与 6.6.162，全部沿用原有补丁。6.1.191 修改了 `drivers/tty/vt/vt.c` 与 `fbcon.c`，改动都不在补丁的 hunk 内。
-- `SUPPORTED.md` 仍列出 2026-10-22 的版本，因为 kernel.org 现已列出 7.4-rc2，而目前没有补丁适用于该版本。
 
 完整的版本记录见 [CHANGELOG.md](CHANGELOG.md)。
 
