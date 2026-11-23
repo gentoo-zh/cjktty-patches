@@ -26,6 +26,17 @@ The patches are based on
 
 **Font data and code are separate patches: all eight kernels share one 12 MB font patch, and each kernel has a 33–44 KB code patch.**
 
+### 2026.11.23 / 5.10.275, 5.15.226, 6.1.193, 6.6.163, 6.12.119, 6.18.65, 7.3.6, 7.4-rc4
+
+- Add `v6.x/cjktty-6.6.163.patch`, `v6.x/cjktty-6.1.193.patch`,
+  `v5.x/cjktty-5.15.226.patch` and `v5.x/cjktty-5.10.275.patch` with their code
+  patches. These releases added `#include "fbcon_rotate.h"` to `bitblit.c`, which
+  moved the context of the first hunk there; every other hunk is unchanged.
+- Record 6.12.119, 6.18.65, 7.3.6 and 7.4-rc4 against the patches they already
+  use; each still applies at fuzz 0.
+- Both stages passed for every release above in each form it ships, so
+  `SUPPORTED.md` now lists the 2026-11-23 releases.
+
 ### 2026.11.17 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.118, 6.18.64, 7.3.5, 7.4-rc3
 
 - Record 6.12.118, 6.18.64 and 7.3.5 against the patches they already use.
@@ -48,18 +59,6 @@ The patches are based on
 - Both stages passed for 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.117, 6.18.63
   and 7.3.4 with `cjktty-font-unifont-18.0.01.patch` and the code patches they
   already use, so `SUPPORTED.md` now lists the 2026-11-16 releases.
-
-### 2026.11.15 / 5.10.272, 5.15.223, 6.1.190, 6.6.160, 6.12.114, 6.18.58, 7.2.12, 7.3
-
-- Add `cjktty-font-unifont-18.0.01.patch`, the 16x16 font data rebuilt from GNU
-  Unifont 18.0.01. The split form now applies it before the code patch. 1,004 BMP
-  glyphs differ from 15.1.04: 447 Hangul jamo, 162 Arabic, 75 Bopomofo and 84 CJK
-  ideograph glyphs, and 236 glyphs in other scripts.
-- `cjktty-font-unifont-15.1.04.patch` keeps its bytes because released ebuilds
-  fetch it by name. The combined patches and the 32x32 data patch still carry
-  Unifont 15.1.04.
-- Both stages passed with the new font patch and the code patch of each kernel
-  listed above.
 
 Complete release history is recorded in [CHANGELOG.md](CHANGELOG.md).
 
