@@ -1,5 +1,16 @@
 # Changes
 
+## 2026.11.23 / 5.10.275, 5.15.226, 6.1.193, 6.6.163, 6.12.119, 6.18.65, 7.3.6, 7.4-rc4
+
+- Add `v6.x/cjktty-6.6.163.patch`, `v6.x/cjktty-6.1.193.patch`,
+  `v5.x/cjktty-5.15.226.patch` and `v5.x/cjktty-5.10.275.patch` with their code
+  patches. These releases added `#include "fbcon_rotate.h"` to `bitblit.c`, which
+  moved the context of the first hunk there; every other hunk is unchanged.
+- Record 6.12.119, 6.18.65, 7.3.6 and 7.4-rc4 against the patches they already
+  use; each still applies at fuzz 0.
+- Both stages passed for every release above in each form it ships, so
+  `SUPPORTED.md` now lists the 2026-11-23 releases.
+
 ## 2026.11.17 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.118, 6.18.64, 7.3.5, 7.4-rc3
 
 - Record 6.12.118, 6.18.64 and 7.3.5 against the patches they already use.

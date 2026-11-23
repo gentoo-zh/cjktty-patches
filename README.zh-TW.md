@@ -17,6 +17,12 @@ cjktty-patches 是一組 framebuffer console CJK 渲染補丁，主要為 Gentoo
 
 **字型資料與原始碼分別存放在不同補丁中：八個核心共用一份 12 MB 字型補丁，每個核心各有一份 33–44 KB 原始碼補丁。**
 
+### 2026.11.23 / 5.10.275, 5.15.226, 6.1.193, 6.6.163, 6.12.119, 6.18.65, 7.3.6, 7.4-rc4
+
+- 新增 `v6.x/cjktty-6.6.163.patch`、`v6.x/cjktty-6.1.193.patch`、`v5.x/cjktty-5.15.226.patch` 與 `v5.x/cjktty-5.10.275.patch` 及對應的原始碼補丁。這幾個版本在 `bitblit.c` 中新增 `#include "fbcon_rotate.h"`，補丁第一個 hunk 的上下文因此改變；其餘 hunk 均未改動。
+- 記錄 6.12.119、6.18.65、7.3.6 與 7.4-rc4，全部沿用原有補丁，仍能以 fuzz 0 套用。
+- 上列每個版本的每種補丁形式都通過了兩個測試階段，因此 `SUPPORTED.md` 改為列出 2026-11-23 的版本。
+
 ### 2026.11.17 / 5.10.274, 5.15.225, 6.1.192, 6.6.162, 6.12.118, 6.18.64, 7.3.5, 7.4-rc3
 
 - 記錄 6.12.118、6.18.64 與 7.3.5，全部沿用原有補丁。6.12.118 與 6.18.64 修改了 `drivers/video/fbdev/core/fbcon_rotate.c`，`par->fontbuffer` 為 NULL 時 `fbcon_rotate_font()` 會重新產生旋轉字型；改動不在補丁的 hunk 內。
@@ -27,12 +33,6 @@ cjktty-patches 是一組 framebuffer console CJK 渲染補丁，主要為 Gentoo
 - 新增 `v7.x/cjktty-code-7.4-rc3.patch`，由 `cjktty-code-7.3.4.patch` 移植而來。7.4 以 `fbcon_cursor_glyph()` 取代 `fbcon_fill_cursor_mask()`，而補丁在 `fbcon.h` 中的 `font_bits()` 宣告緊鄰舊的函式原型，該 hunk 因此改用新的上下文。其餘 hunk 均未改動：CJK 游標程式碼修改的是游標圖像，不是 7.4 改寫的游標遮罩。
 - 以 `cjktty-font-unifont-18.0.01.patch` 加上新的原始碼補丁，通過了兩個測試階段。
 - 5.10.274、5.15.225、6.1.192、6.6.162、6.12.117、6.18.63 與 7.3.4 以 `cjktty-font-unifont-18.0.01.patch` 加上原有的原始碼補丁通過了兩個測試階段，因此 `SUPPORTED.md` 改為列出 2026-11-16 的版本。
-
-### 2026.11.15 / 5.10.272, 5.15.223, 6.1.190, 6.6.160, 6.12.114, 6.18.58, 7.2.12, 7.3
-
-- 新增 `cjktty-font-unifont-18.0.01.patch`，以 GNU Unifont 18.0.01 重新產生 16x16 字型資料。拆分形式改為先套用這份字型補丁，再套用原始碼補丁。與 15.1.04 相比有 1,004 個 BMP 字形不同：韓文字母 447 個、阿拉伯文 162 個、注音符號 75 個、CJK 表意文字 84 個，其他文字 236 個。
-- `cjktty-font-unifont-15.1.04.patch` 的內容保持不變，因為已發布的 ebuild 依檔名取得這份補丁。合併補丁與 32x32 資料補丁仍使用 Unifont 15.1.04 的資料。
-- 上列每個核心以新字型補丁加上各自的原始碼補丁，通過了兩個測試階段。
 
 完整的版本記錄見 [CHANGELOG.md](CHANGELOG.md)。
 
